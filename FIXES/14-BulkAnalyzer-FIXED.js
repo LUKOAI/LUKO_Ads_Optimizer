@@ -473,19 +473,14 @@ class BulkAnalyzer {
       this.logger.log(`📊 Z Full Analysis: ${stats.fromFullAnalysis}`, 'INFO');
       this.logger.log(`✅ Automatycznie zaznaczono: ${stats.autoSelected}`, 'INFO');
 
-      // FIX V3.4: Zamknij WSZYSTKIE toasty przed pokazaniem podsumowania
+      // FIX V3.5: Zamknij toast przed pokazaniem podsumowania
+      // UWAGA: timeout musi być >= 1, wartość 0 NIE zamyka toasta!
       try {
-        this.ss.toast('', '', 0);  // Zamknij stary toast
+        this.ss.toast('✅ Analiza zakończona!', 'LUKO', 1);
       } catch(e) { /* ignore */ }
 
       // Pokaż szczegółowe podsumowanie
       this.showDetailedSummary(stats, elapsed);
-
-      // FIX V3.4: Zamknij toast ponownie po pokazaniu podsumowania (na wszelki wypadek)
-      Utilities.sleep(100);
-      try {
-        this.ss.toast('', '', 0);
-      } catch(e) { /* ignore */ }
 
       return {
         success: true,

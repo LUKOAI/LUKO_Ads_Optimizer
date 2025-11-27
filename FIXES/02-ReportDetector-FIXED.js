@@ -13,6 +13,16 @@ class UltraReportDetector {
     this.logger = logger;
 
     this.reportTypes = {
+      // BULK FILE - najwyższy priorytet
+      BULK_REPORT: {
+        required: ['entity', 'campaign'],
+        identifying: ['entity', 'record.*type', 'campaign.*id', 'ad.*group.*id'],
+        patterns: ['bulk', 'sponsored.*products', 'state', 'bid'],
+        excludes: [],
+        priority: 110,
+        description: 'Amazon Bulk Operations File'
+      },
+
       CAMPAIGN_REPORT: {
         required: ['campaign', 'impressions'],
         identifying: ['campaign', 'spend', 'sales'],
@@ -62,8 +72,12 @@ class UltraReportDetector {
     sheets.forEach(sheet => {
       const sheetName = sheet.getName();
 
-      // Pomin arkusze LUKO
-      if (sheetName.startsWith(LUKO_CONFIG.SHEET_PREFIX)) {
+      // Pomin arkusze LUKO (ale NIE pomijaj arkuszy z raportami użytkownika)
+      const isUserReportSheet = sheetName.toLowerCase().includes('wklej') ||
+                                sheetName.toLowerCase().includes('raport') ||
+                                sheetName.toLowerCase().includes('amazon');
+
+      if (sheetName.startsWith(LUKO_CONFIG.SHEET_PREFIX) && !isUserReportSheet) {
         this.logger.log(`Skipping LUKO sheet: ${sheetName}`, 'INFO');
         return;
       }
@@ -130,7 +144,8 @@ class UltraReportDetector {
         const nonEmptyCount = values.filter(val => val && val.toString().trim()).length;
         const hasTypicalHeaders = this.hasTypicalAmazonHeaders(values);
 
-        if (nonEmptyCount >= 5 && hasTypicalHeaders) {
+        // FIX: Obniżone wymaganie z 5 do 3 kolumn (dla małych raportów)
+        if (nonEmptyCount >= 3 && hasTypicalHeaders) {
           const headers = values.map(val => val ? val.toString().trim() : '');
 
           return {
@@ -153,10 +168,15 @@ class UltraReportDetector {
     const headerStr = values.join(' ').toLowerCase();
 
     const amazonPatterns = [
+      // Standardowe raporty Amazon
       'impressions', 'clicks', 'spend', 'sales', 'campaign', 'orders',
       'impressionen', 'klicks', 'ausgaben', 'verkaufe', 'kampagnen', 'bestellungen',
       'acos', 'roas', 'ctr', 'cpc', 'asin', 'sku',
-      '7 day total', 'total advertising'
+      '7 day total', 'total advertising',
+      // BULK file nagłówki
+      'entity', 'record type', 'campaign id', 'ad group id',
+      'keyword id', 'product targeting id', 'targeting expression',
+      'sponsored products', 'sponsored brands', 'state', 'bid'
     ];
 
     return amazonPatterns.some(pattern => headerStr.includes(pattern));

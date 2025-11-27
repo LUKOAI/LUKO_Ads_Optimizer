@@ -797,37 +797,47 @@ class BulkChangeManager {
     const headers = data[0];
     const columns = this.findColumnIndices(headers);
 
+    // FIX V3.5: Sprawdź czy kolumna Apply istnieje
+    if (columns.Apply === undefined) {
+      return '⚠️ Nie znaleziono kolumny "Apply" w arkuszu BULK_Builder!\n\nUpewnij się, że arkusz zawiera kolumnę z nagłówkiem "Apply" lub "Zastosuj".';
+    }
+
     let pausedCount = 0;
-    let skippedNotTarget = 0;
     let skippedThreshold = 0;
+    let skippedNoApply = 0;
     const updates = [];
 
-    // FIXED V3.3: Iteruj przez WSZYSTKIE wiersze i sprawdź Apply=TRUE
+    // FIXED V3.5: Iteruj przez WSZYSTKIE wiersze i sprawdź Apply=TRUE
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
 
-      // FIXED: Sprawdź czy Apply jest zaznaczone (TRUE/checkbox)
+      // FIXED V3.5: Sprawdź czy Apply jest zaznaczone (TRUE/checkbox/1)
       const applyValue = row[columns.Apply];
-      const isApplyChecked = (applyValue === true || applyValue === 'TRUE' || applyValue === '☑');
+      const isApplyChecked = (applyValue === true || applyValue === 'TRUE' ||
+                              applyValue === '☑' || applyValue === 1 ||
+                              applyValue === '1' || applyValue === 'yes' ||
+                              applyValue === 'Yes' || applyValue === 'YES');
 
-      if (!isApplyChecked) continue;
+      if (!isApplyChecked) {
+        skippedNoApply++;
+        continue;
+      }
 
-      // FIXED V3.3: Poprawiona detekcja entity - akceptuje różne formaty
+      // FIXED V3.5: Poprawiona detekcja entity - akceptuje WSZYSTKIE typy do pauzowania
       const entity = (row[columns.Entity] || '').toString().trim().toLowerCase();
 
-      // Lista dozwolonych entity do pauzowania (State=paused)
-      const pausableEntities = ['keyword', 'product targeting', 'targeting', 'campaign', 'ad group', 'adgroup'];
+      // FIX V3.5: Szeroka lista entity do pauzowania
+      const pausableEntities = [
+        'keyword', 'product targeting', 'targeting', 'campaign', 'ad group', 'adgroup',
+        'negative keyword', 'negative product targeting', 'bid adjustment', 'product ad'
+      ];
       const isTarget = pausableEntities.some(e => entity.includes(e) || e.includes(entity));
 
-      // Sprawdź też czy ma Keyword Text lub Targeting Expression (to też jest target)
-      const keywordText = row[columns.Targeting] || row[columns['Match Type']] || '';
-      const hasKeywordData = keywordText && keywordText.toString().trim().length > 0;
-
-      // FIX V3.3: Jeśli entity jest puste ale ma dane keyword - traktuj jako target
-      if (!isTarget && !hasKeywordData && entity !== '') {
-        skippedNotTarget++;
-        Logger.log(`Pominięto: Entity="${entity}" (wiersz ${i+1})`);
-        continue;
+      // FIX V3.5: Jeśli entity jest puste LUB nierozpoznane - PAUZUJ i tak!
+      // Użytkownik zaznaczył Apply, więc chce spauzować ten wiersz
+      if (!isTarget && entity !== '') {
+        // Tylko loguj jako warning, ale NIE pomijaj
+        Logger.log(`⚠️ Nieznany entity: "${entity}" (wiersz ${i+1}) - pauzuję mimo wszystko`);
       }
 
       // Sprawdź progi jeśli są ustawione
@@ -873,12 +883,10 @@ class BulkChangeManager {
       let reason = 'ℹ️ Żaden wiersz nie spełnił kryteriów pauzowania\n\n';
       reason += '📋 Sprawdź:\n';
       reason += '• Czy zaznaczono checkboxy w kolumnie Apply?\n';
-      reason += '• Czy zaznaczone wiersze to Keyword lub Product Targeting?\n';
-      if (skippedNotTarget > 0) {
-        reason += `\n⚠️ Pominięto ${skippedNotTarget} wierszy (nie są targetami)`;
-      }
+      reason += `\n📊 Statystyki:\n`;
+      reason += `• Wierszy bez zaznaczenia Apply: ${skippedNoApply}\n`;
       if (skippedThreshold > 0) {
-        reason += `\n⚠️ Pominięto ${skippedThreshold} wierszy (nie spełniły progów clicks/spend)`;
+        reason += `• Pominięto (progi clicks/spend): ${skippedThreshold}\n`;
       }
       return reason;
     }
@@ -887,9 +895,6 @@ class BulkChangeManager {
     this.applyBatchUpdates(updates, columns);
 
     let result = `✓ Pomyślnie spauzowano ${pausedCount} targetów!`;
-    if (skippedNotTarget > 0) {
-      result += `\n\n⚠️ Pominięto ${skippedNotTarget} wierszy (Campaign/Ad Group/Product Ad - nie można pauzować przez State)`;
-    }
     if (skippedThreshold > 0) {
       result += `\n⚠️ Pominięto ${skippedThreshold} wierszy (nie spełniły progów clicks/spend)`;
     }
