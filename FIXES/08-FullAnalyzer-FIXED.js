@@ -1,9 +1,10 @@
-// ===== 08-FULLANALYZER.GS - WERSJA 5.1 FIXED =====
+// ===== 08-FULLANALYZER.GS - WERSJA 5.2 FIXED =====
 // ====================================
 // LUKO AMZ Ads Optimizer
-// Version: 0.60 (FIXED V2)
+// Version: 0.60 (FIXED V3.4)
 // Author: Łukasz Koronczok, NetAnaliza
 // ====================================
+// FIX V3.4: Integracja z wspólnymi zasadami TargetAnalysisRules
 // FIX V2: W pełni samodzielna wersja - nie zależy od LukoLogger ani innych klas
 // Rozwiązuje "logger is not defined" i inne błędy zależności
 
@@ -376,6 +377,11 @@ class FullAnalyzer {
   }
 
   evaluateAcos(acos) {
+    // FIX V3.4: Użyj wspólnych zasad z TargetAnalysisRules jeśli dostępne
+    if (typeof TargetAnalysisRules !== 'undefined') {
+      return TargetAnalysisRules.evaluateAcos(acos);
+    }
+    // Fallback - lokalna logika
     if (acos <= this.acosSettings.low) return '🟢 DOSKONAŁY';
     if (acos <= this.acosSettings.breakEven) return '🟡 DOBRY';
     if (acos <= this.acosSettings.high) return '🟠 UWAGA';

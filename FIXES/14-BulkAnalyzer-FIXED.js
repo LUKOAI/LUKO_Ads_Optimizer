@@ -502,6 +502,10 @@ class BulkAnalyzer {
   /**
    * KLASYFIKACJA TARGETU - Szczegółowa z wyjaśnieniami
    * FIXED: Dodana logika dla 0 kliknięć i ulepszona detekcja kosztownych targetów
+   *
+   * UWAGA: Ta logika jest SPÓJNA z TargetAnalysisRules (00-TargetAnalysisRules.js)
+   * Progi: lowAcos = BE*0.5, highAcos = BE*1.67, critical = BE*2
+   * Akcje: PAUSE, DECREASE_BID, INCREASE_BID, MONITOR, MAINTAIN
    */
   classifyTarget(row, columns) {
     // ZMIANA: Pobierz typ entity
