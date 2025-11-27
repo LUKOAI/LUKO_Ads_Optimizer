@@ -1,0 +1,107 @@
+{
+  "id": "T003",
+  "name": "Pause Targets",
+  "group": "A",
+  "priority": 1,
+  "description": "Test pauzowania targetów bez sprzedaży",
+
+  "testData": {
+    "totalRows": 100,
+    "zeroSalesRows": 20,
+    "format": "EU",
+    "criteria": {
+      "minClicks": 10,
+      "minSpend": 5,
+      "sales": 0
+    }
+  },
+
+  "expectedResults": {
+    "expectedPaused": 20,
+    "stateValue": "paused",
+    "checkboxMarked": true,
+    "colorApplied": "#ffcccc"
+  },
+
+  "successCriteria": {
+    "100%": "Wszystkie 20 targetów zapauzowane",
+    "90%": "18-19 zapauzowanych",
+    "<90%": "Timeout lub <18 zapauzowanych"
+  },
+
+  "assertions": [
+    {
+      "name": "Correct Pause Count",
+      "type": "equals",
+      "expected": 20,
+      "weight": 40
+    },
+    {
+      "name": "State Values Correct",
+      "type": "allEqual",
+      "expected": "paused",
+      "weight": 30
+    },
+    {
+      "name": "Checkboxes Marked",
+      "type": "equals",
+      "expected": 20,
+      "weight": 15
+    },
+    {
+      "name": "No Timeout",
+      "type": "equals",
+      "expected": false,
+      "weight": 15
+    }
+  ],
+
+  "possibleCauses": [
+    {
+      "probability": 85,
+      "cause": "Pętla setValue() zamiast batch setValues()",
+      "explanation": "Individual cell updates cause timeout with many rows",
+      "file": "15-BulkChangeManager.js",
+      "solution": "Convert to batch operations using 2D arrays"
+    },
+    {
+      "probability": 75,
+      "cause": "Timeout przy 500+ wierszach",
+      "explanation": "Function exceeds execution time limit"
+    },
+    {
+      "probability": 60,
+      "cause": "Warunek sales = 0 nie działa (format liczby)",
+      "explanation": "Sales value '0,00' not recognized as zero",
+      "file": "15-BulkChangeManager.js"
+    },
+    {
+      "probability": 50,
+      "cause": "Recommendation column not found",
+      "explanation": "Looking for wrong column name"
+    }
+  ],
+
+  "relatedFunctions": [
+    "BulkChangeManager.pauseZeroSales()",
+    "BulkAnalyzer.classifyTarget()"
+  ],
+
+  "edgeCases": [
+    {
+      "name": "Zero Sales EU Format",
+      "sales": "0,00",
+      "shouldPause": true
+    },
+    {
+      "name": "Very Small Sales",
+      "sales": "0,01",
+      "shouldPause": false
+    },
+    {
+      "name": "Already Paused",
+      "state": "paused",
+      "shouldChange": false
+    }
+  ]
+}

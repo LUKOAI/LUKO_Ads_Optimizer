@@ -1,0 +1,124 @@
+{
+  "id": "T007",
+  "name": "Budget Changes",
+  "group": "A",
+  "priority": 1,
+  "description": "Test zmiany budżetów kampanii na podstawie ACOS",
+
+  "testData": {
+    "campaigns": [
+      {"name": "Campaign_1", "budget": 10, "acos": 15},
+      {"name": "Campaign_2", "budget": 20, "acos": 25},
+      {"name": "Campaign_3", "budget": 30, "acos": 35},
+      {"name": "Campaign_4", "budget": 40, "acos": 18},
+      {"name": "Campaign_5", "budget": 50, "acos": 45}
+    ],
+    "budgets": [10, 20, 30, 40, 50],
+    "acosValues": [15, 25, 35, 18, 45],
+    "changePercent": 20,
+    "acosThreshold": 20,
+    "format": "EU"
+  },
+
+  "expectedResults": {
+    "expectedChanges": 3,
+    "campaignsToChange": ["Campaign_2", "Campaign_3", "Campaign_5"],
+    "expectedNewBudgets": {
+      "Campaign_1": 10,
+      "Campaign_2": 24,
+      "Campaign_3": 36,
+      "Campaign_4": 40,
+      "Campaign_5": 60
+    }
+  },
+
+  "successCriteria": {
+    "100%": "Wszystkie 3 kampanie z ACOS > 20% mają zmienione budżety",
+    "90%": "2-3 kampanie poprawnie zmienione",
+    "<90%": "'Przetwarzam...' bez rezultatu lub <2 zmiany"
+  },
+
+  "assertions": [
+    {
+      "name": "Correct Campaigns Changed",
+      "type": "equals",
+      "expected": 3,
+      "weight": 40
+    },
+    {
+      "name": "Budget Calculation Accuracy",
+      "type": "percentage",
+      "expected": 100,
+      "tolerance": 0.1,
+      "weight": 35
+    },
+    {
+      "name": "No Zero Budgets",
+      "type": "equals",
+      "expected": 0,
+      "weight": 25
+    }
+  ],
+
+  "possibleCauses": [
+    {
+      "probability": 80,
+      "cause": "Funkcja adjustCampaignBudgets() nie działa",
+      "explanation": "Function throws error or doesn't execute",
+      "file": "15-BulkChangeManager.js",
+      "solution": "Check function entry point and error handling"
+    },
+    {
+      "probability": 70,
+      "cause": "Problem z ACOS settings",
+      "explanation": "ACOS threshold not read correctly",
+      "file": "01-Main.js"
+    },
+    {
+      "probability": 65,
+      "cause": "Brak batch processing",
+      "explanation": "Timeout when processing many campaigns"
+    },
+    {
+      "probability": 55,
+      "cause": "Campaign aggregation not working",
+      "explanation": "Campaigns not grouped correctly by name"
+    }
+  ],
+
+  "logic": {
+    "condition": "ACOS > acosThreshold",
+    "action": "budget = budget * (1 + changePercent/100)",
+    "aggregation": "Group by Campaign Name"
+  },
+
+  "validations": {
+    "minBudget": 1,
+    "maxBudget": 1000000,
+    "roundToDecimals": 2
+  },
+
+  "edgeCases": [
+    {
+      "name": "ACOS at Threshold",
+      "acos": 20,
+      "shouldChange": false,
+      "note": "Strictly greater than threshold"
+    },
+    {
+      "name": "Very High ACOS",
+      "acos": 500,
+      "shouldChange": true
+    },
+    {
+      "name": "Zero ACOS",
+      "acos": 0,
+      "shouldChange": false
+    },
+    {
+      "name": "EU Format ACOS",
+      "acos": "35,5%",
+      "shouldChange": true
+    }
+  ]
+}

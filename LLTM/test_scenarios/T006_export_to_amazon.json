@@ -1,0 +1,125 @@
+{
+  "id": "T006",
+  "name": "Export to Amazon",
+  "group": "A",
+  "priority": 1,
+  "description": "Test eksportu danych do formatu Amazon Bulk Upload",
+
+  "testData": {
+    "totalRows": 50,
+    "pauseRows": 10,
+    "bidChangeRows": 20,
+    "budgetChangeRows": 20,
+    "format": "US"
+  },
+
+  "expectedResults": {
+    "allRowsExported": true,
+    "validFormat": true,
+    "requiredColumnsPresent": true,
+    "analysisColumnsRemoved": true
+  },
+
+  "requiredAmazonColumns": [
+    "Product",
+    "Entity",
+    "Operation",
+    "Campaign Id",
+    "Ad Group Id",
+    "Campaign Name",
+    "Ad Group Name",
+    "Bid",
+    "State"
+  ],
+
+  "analysisColumnsToRemove": [
+    "💡 Recommendation",
+    "📊 Confidence",
+    "📝 Reason",
+    "✅ Apply Change"
+  ],
+
+  "successCriteria": {
+    "100%": "Plik poprawny, wszystkie 50 wierszy",
+    "90%": "Plik poprawny, 45-49 wierszy",
+    "<90%": "Błąd walidacji lub <45 wierszy"
+  },
+
+  "assertions": [
+    {
+      "name": "All Rows Exported",
+      "type": "greaterOrEqual",
+      "expected": 45,
+      "weight": 30
+    },
+    {
+      "name": "Required Columns Present",
+      "type": "contains",
+      "expected": ["Product", "Entity", "Operation", "Campaign Id", "Bid", "State"],
+      "weight": 30
+    },
+    {
+      "name": "Valid Export Format",
+      "type": "equals",
+      "expected": true,
+      "weight": 25
+    },
+    {
+      "name": "No Analysis Columns Leaked",
+      "type": "notContains",
+      "expected": ["💡", "📊", "📝", "✅"],
+      "weight": 15
+    }
+  ],
+
+  "possibleCauses": [
+    {
+      "probability": 80,
+      "cause": "Brak walidacji przed eksportem",
+      "explanation": "Invalid data passed to export",
+      "file": "16-BulkValidator.js"
+    },
+    {
+      "probability": 70,
+      "cause": "Niepoprawny format danych",
+      "explanation": "Number format not converted to US",
+      "file": "17-BulkExporter.js"
+    },
+    {
+      "probability": 65,
+      "cause": "Brakujące kolumny wymagane przez Amazon",
+      "explanation": "Some required columns not present",
+      "file": "17-BulkExporter.js",
+      "solution": "Add missing columns to export template"
+    },
+    {
+      "probability": 55,
+      "cause": "Analysis columns not filtered out",
+      "explanation": "Emoji-prefixed columns leaked to export"
+    }
+  ],
+
+  "exportFormats": [
+    {
+      "name": "Google Sheets",
+      "extension": null,
+      "createNewSpreadsheet": true
+    },
+    {
+      "name": "CSV",
+      "extension": ".csv",
+      "delimiter": ","
+    },
+    {
+      "name": "Excel",
+      "extension": ".xlsx"
+    }
+  ],
+
+  "validations": {
+    "bidRange": {"min": 0.02, "max": 100},
+    "budgetRange": {"min": 1, "max": 1000000},
+    "stateValues": ["enabled", "paused", "archived"],
+    "operationValues": ["update", "create", "delete"]
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "id": "T001",
+  "name": "Row Selection",
+  "group": "A",
+  "priority": 1,
+  "description": "Test zaznaczania wierszy spełniających kryteria filtrowania",
+
+  "testData": {
+    "totalRows": 100,
+    "matchingRows": 15,
+    "format": "EU",
+    "criteria": {
+      "minClicks": 10,
+      "minSpend": 5
+    }
+  },
+
+  "expectedResults": {
+    "selectedRows": 15,
+    "checkboxColumn": "✅ Apply Change",
+    "allSelectedMeetCriteria": true,
+    "noFalsePositives": true
+  },
+
+  "successCriteria": {
+    "100%": "Dokładnie 15 wierszy zaznaczonych",
+    "90-99%": "13-14 wierszy zaznaczonych (prawie dobrze)",
+    "<90%": "0-12 wierszy zaznaczonych (porażka)"
+  },
+
+  "assertions": [
+    {
+      "name": "Row Count Match",
+      "type": "equals",
+      "expected": 15,
+      "weight": 50
+    },
+    {
+      "name": "No False Selections",
+      "type": "equals",
+      "expected": 0,
+      "weight": 25
+    },
+    {
+      "name": "No Missed Selections",
+      "type": "equals",
+      "expected": 0,
+      "weight": 25
+    }
+  ],
+
+  "possibleCauses": [
+    {
+      "probability": 90,
+      "cause": "parseFloat() zamiast universalParser.parseNumber()",
+      "explanation": "Nie rozpoznaje formatu EU (5,5)",
+      "file": "15-BulkChangeManager.js",
+      "line": 173,
+      "solution": "Replace parseFloat() with universalParser.parseNumber()"
+    },
+    {
+      "probability": 70,
+      "cause": "Zmieniony indeks kolumny",
+      "explanation": "Kolumna Clicks/Spend ma inny indeks niż oczekiwano",
+      "file": "14-BulkAnalyzer.js"
+    },
+    {
+      "probability": 60,
+      "cause": "Logika filtrowania usunięta/zmieniona",
+      "explanation": "Warunki filtrowania zostały zmienione"
+    },
+    {
+      "probability": 50,
+      "cause": "Batch processing nie działa (timeout)",
+      "explanation": "Przy dużych zbiorach danych funkcja nie kończy działania"
+    }
+  ],
+
+  "edgeCases": [
+    {
+      "name": "EU Number Format",
+      "data": {"clicks": "15,5", "spend": "7,25"},
+      "shouldMatch": true
+    },
+    {
+      "name": "US Number Format",
+      "data": {"clicks": "15.5", "spend": "7.25"},
+      "shouldMatch": true
+    },
+    {
+      "name": "Boundary Values",
+      "data": {"clicks": "10", "spend": "5"},
+      "shouldMatch": true
+    },
+    {
+      "name": "Just Below Threshold",
+      "data": {"clicks": "9", "spend": "4.99"},
+      "shouldMatch": false
+    }
+  ]
+}

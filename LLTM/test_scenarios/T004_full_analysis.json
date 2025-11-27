@@ -1,0 +1,107 @@
+{
+  "id": "T004",
+  "name": "Full Analysis",
+  "group": "A",
+  "priority": 1,
+  "description": "Test generowania pełnej analizy i dopasowania targetów",
+
+  "testData": {
+    "fullAnalysisTargets": 50,
+    "builderRows": 100,
+    "expectedMatches": 30,
+    "format": "EU"
+  },
+
+  "expectedResults": {
+    "expectedColumns": ["💡 Recommendation", "📊 Confidence", "📝 Reason"],
+    "matchRate": 100,
+    "columnsPresent": true,
+    "recommendationsGenerated": true
+  },
+
+  "successCriteria": {
+    "100%": "Wszystkie 30 targetów dopasowane, kolumny analizy wypełnione",
+    "90%": "27-29 dopasowanych",
+    "<90%": "Komunikat 'No matching targets' lub <27"
+  },
+
+  "assertions": [
+    {
+      "name": "Target Matching",
+      "type": "greaterOrEqual",
+      "expected": 27,
+      "weight": 35
+    },
+    {
+      "name": "Analysis Columns Present",
+      "type": "contains",
+      "expected": ["💡 Recommendation", "📊 Confidence", "📝 Reason"],
+      "weight": 25
+    },
+    {
+      "name": "Recommendations Generated",
+      "type": "notEmpty",
+      "weight": 20
+    },
+    {
+      "name": "Confidence Values Set",
+      "type": "notEmpty",
+      "weight": 20
+    }
+  ],
+
+  "possibleCauses": [
+    {
+      "probability": 85,
+      "cause": "Brak fuzzy matching (tylko exact match)",
+      "explanation": "Campaign/AdGroup names must match exactly",
+      "file": "13-BulkMapper.js",
+      "solution": "Implement fuzzy matching for campaign names"
+    },
+    {
+      "probability": 75,
+      "cause": "Różne nazwy kolumn między raportami",
+      "explanation": "Full Analysis uses different column names than BULK",
+      "file": "04-DataIntegrator.js"
+    },
+    {
+      "probability": 65,
+      "cause": "Brak normalizacji tekstu",
+      "explanation": "Case sensitivity or whitespace issues",
+      "file": "13-BulkMapper.js"
+    },
+    {
+      "probability": 55,
+      "cause": "Problem z Campaign Name / Ad Group Name",
+      "explanation": "Matching keys not found or different format"
+    }
+  ],
+
+  "recommendationTypes": [
+    "INCREASE_BID",
+    "DECREASE_BID",
+    "PAUSE",
+    "ADD_NEGATIVE",
+    "KEEP"
+  ],
+
+  "edgeCases": [
+    {
+      "name": "Campaign Name With Special Chars",
+      "campaignName": "Campaign™-Test_ąćę",
+      "shouldMatch": true
+    },
+    {
+      "name": "Different Case",
+      "source": "My Campaign",
+      "target": "MY CAMPAIGN",
+      "shouldMatch": true
+    },
+    {
+      "name": "Extra Whitespace",
+      "source": "Campaign  Name",
+      "target": "Campaign Name",
+      "shouldMatch": true
+    }
+  ]
+}

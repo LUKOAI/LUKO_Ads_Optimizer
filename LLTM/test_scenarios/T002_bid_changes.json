@@ -1,0 +1,112 @@
+{
+  "id": "T002",
+  "name": "Bid Changes",
+  "group": "A",
+  "priority": 1,
+  "description": "Test zmiany stawek o określony procent",
+
+  "testData": {
+    "currentBids": [0.50, 0.75, 1.00, 1.25, 1.50, 0.60, 0.80, 0.90, 1.10, 1.30],
+    "changePercent": 15,
+    "changeType": "percent_increase",
+    "format": "EU"
+  },
+
+  "expectedResults": {
+    "expectedNewBids": [0.58, 0.86, 1.15, 1.44, 1.73, 0.69, 0.92, 1.04, 1.27, 1.50],
+    "allBidsChanged": true,
+    "noBidsZero": true,
+    "noBidsUnchanged": true,
+    "noBidsNaN": true
+  },
+
+  "successCriteria": {
+    "100%": "Wszystkie 10 stawek poprawnie zwiększone o 15%",
+    "90%": "9/10 poprawnych",
+    "<90%": "Wynik '0 changes made' lub <9 poprawnych"
+  },
+
+  "assertions": [
+    {
+      "name": "All Bids Changed",
+      "type": "equals",
+      "expected": 10,
+      "weight": 30
+    },
+    {
+      "name": "No Zero Bids",
+      "type": "equals",
+      "expected": 0,
+      "weight": 25
+    },
+    {
+      "name": "Calculation Accuracy",
+      "type": "percentage",
+      "expected": 100,
+      "tolerance": 0.02,
+      "weight": 30
+    },
+    {
+      "name": "No Unchanged Bids",
+      "type": "equals",
+      "expected": 0,
+      "weight": 15
+    }
+  ],
+
+  "possibleCauses": [
+    {
+      "probability": 95,
+      "cause": "parseFloat('5,5') → NaN → 0",
+      "explanation": "EU format numbers not parsed correctly",
+      "file": "15-BulkChangeManager.js",
+      "line": 173,
+      "solution": "Use universalParser.parseNumber() instead of parseFloat()"
+    },
+    {
+      "probability": 70,
+      "cause": "Brak batch processing → timeout",
+      "explanation": "Individual setValue() calls cause timeout",
+      "file": "15-BulkChangeManager.js"
+    },
+    {
+      "probability": 60,
+      "cause": "Funkcja nie znajduje zaznaczonych wierszy",
+      "explanation": "Checkbox column not found or named differently"
+    },
+    {
+      "probability": 50,
+      "cause": "Zmieniona nazwa kolumny 'Apply' lub 'New Bid'",
+      "explanation": "Column headers don't match expected names"
+    }
+  ],
+
+  "validations": {
+    "minBid": 0.02,
+    "maxBid": 100,
+    "roundToDecimals": 2
+  },
+
+  "edgeCases": [
+    {
+      "name": "Very Small Bid",
+      "currentBid": 0.02,
+      "changePercent": 15,
+      "expectedNewBid": 0.02,
+      "note": "Should not go below minimum"
+    },
+    {
+      "name": "Very Large Bid",
+      "currentBid": 95,
+      "changePercent": 15,
+      "expectedNewBid": 100,
+      "note": "Should not exceed maximum"
+    },
+    {
+      "name": "EU Format",
+      "currentBid": "0,75",
+      "changePercent": 15,
+      "expectedNewBid": 0.86
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "id": "T005",
+  "name": "Column Mapping",
+  "group": "A",
+  "priority": 1,
+  "description": "Test mapowania kolumn z różnych formatów raportów Amazon",
+
+  "testData": {
+    "format1": {
+      "name": "SP Search Term Report",
+      "keyColumn": "Keyword text",
+      "sampleHeaders": ["Keyword text", "Match type", "Customer search term", "Clicks", "Spend", "ACOS"]
+    },
+    "format2": {
+      "name": "Sponsored Products Search term",
+      "keyColumn": "Targeting",
+      "sampleHeaders": ["Targeting", "Match Type", "Customer Search Term", "Clicks", "Spend", "Total ACOS"]
+    }
+  },
+
+  "expectedResults": {
+    "format1Works": true,
+    "format2Works": true,
+    "allColumnsFound": true
+  },
+
+  "successCriteria": {
+    "100%": "Oba formaty działają poprawnie",
+    "0%": "Jeden z formatów nie działa (błąd 'kolumna nie znaleziona')"
+  },
+
+  "assertions": [
+    {
+      "name": "Format 1 Mapping",
+      "type": "columnFound",
+      "expected": "Keyword text",
+      "weight": 50
+    },
+    {
+      "name": "Format 2 Mapping",
+      "type": "columnFound",
+      "expected": "Targeting",
+      "weight": 50
+    }
+  ],
+
+  "columnAliases": {
+    "targeting": ["Keyword text", "Targeting", "Keyword Text", "Zielschlüsselwort", "Mot-clé"],
+    "matchType": ["Match type", "Match Type", "Übereinstimmungstyp", "Type de correspondance"],
+    "searchTerm": ["Customer search term", "Customer Search Term", "Suchbegriff", "Terme de recherche"],
+    "clicks": ["Clicks", "Klicks", "Kliknięcia", "Clics"],
+    "spend": ["Spend", "Ausgaben", "Wydatki", "Dépenses", "Cost"],
+    "sales": ["7 Day Total Sales", "Sales", "Total Sales", "Sprzedaż", "Verkäufe", "Ventes"],
+    "acos": ["ACOS", "Total ACOS", "ACOS Total"]
+  },
+
+  "possibleCauses": [
+    {
+      "probability": 90,
+      "cause": "Brak systemu aliasów",
+      "explanation": "Only looking for one specific column name",
+      "file": "04-DataIntegrator.js",
+      "solution": "Implement column alias mapping dictionary"
+    },
+    {
+      "probability": 75,
+      "cause": "Szukanie tylko jednej nazwy kolumny",
+      "explanation": "Not checking alternative names"
+    },
+    {
+      "probability": 65,
+      "cause": "Case-sensitive porównywanie",
+      "explanation": "'Clicks' vs 'clicks' not matching",
+      "solution": "Use toLowerCase() for comparison"
+    },
+    {
+      "probability": 50,
+      "cause": "Whitespace issues",
+      "explanation": "Extra spaces in column names not trimmed"
+    }
+  ],
+
+  "supportedLanguages": ["EN", "DE", "PL", "FR"],
+
+  "edgeCases": [
+    {
+      "name": "German Format",
+      "columnName": "Ausgaben",
+      "expectedAlias": "spend"
+    },
+    {
+      "name": "Polish Format",
+      "columnName": "Wydatki",
+      "expectedAlias": "spend"
+    },
+    {
+      "name": "Mixed Case",
+      "columnName": "CUSTOMER SEARCH TERM",
+      "expectedAlias": "searchTerm"
+    },
+    {
+      "name": "With Extra Spaces",
+      "columnName": " Clicks ",
+      "expectedAlias": "clicks"
+    }
+  ]
+}
