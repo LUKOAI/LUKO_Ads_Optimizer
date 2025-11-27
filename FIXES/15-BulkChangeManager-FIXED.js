@@ -2,7 +2,13 @@
  * LUKO Ads Optimizer - Bulk Change Manager
  * Moduł do aplikowania zmian masowych w kampaniach Amazon PPC
  *
- * WERSJA: 3.0 - PEŁNA FUNKCJONALNOŚĆ
+ * WERSJA: 3.4 - PEŁNA FUNKCJONALNOŚĆ + FIXES
+ *
+ * NAPRAWIONE W V3.4:
+ * - Entity detection: akceptuje różne formaty (keyword, targeting, etc.)
+ * - Bid change: wartość dodatnia/ujemna określa kierunek
+ * - ChangesDONE: ZAWSZE ustawia 'DONE' (dla eksportu)
+ * - Dialog uproszczony: 2 kroki zamiast 4 pól
  *
  * NAPRAWIONE W V3.0:
  * - Opcja "Zmień zaznaczone (Apply=TRUE)" vs "Zmień wszystkie"
@@ -504,7 +510,10 @@ class BulkChangeManager {
       // Przygotuj aktualizację
       const updatedRow = [...row];
       const changeNote = `Bid ${direction === 'increase' ? '+' : ''}${changePercent}%`;
-      updatedRow[columns.ChangesDONE] = changeNote;
+
+      // FIX V3.4: ChangesDONE powinno być "DONE" - notatka idzie do Status
+      updatedRow[columns.ChangesDONE] = 'DONE';
+      updatedRow[columns.Status] = changeNote;  // Notatka o zmianie do Status
       updatedRow[columns.Apply] = ''; // Wyczyść checkbox
 
       // NAPRAWIONE: Zmień faktyczną kolumnę Amazon "Bid"
@@ -543,7 +552,7 @@ class BulkChangeManager {
 
       // Przygotuj aktualizację
       const updatedRow = [...row];
-      updatedRow[columns.ChangesDONE] = 'Negative keyword added';
+      updatedRow[columns.ChangesDONE] = 'DONE';  // FIX V3.4: Zawsze DONE dla eksportu
       updatedRow[columns.Apply] = ''; // Wyczyść checkbox
 
       updates.push({
@@ -572,7 +581,7 @@ class BulkChangeManager {
       // Przygotuj aktualizację
       const updatedRow = [...row];
       updatedRow[columns.Status] = 'Monitoring';
-      updatedRow[columns.ChangesDONE] = 'MONITORED';
+      updatedRow[columns.ChangesDONE] = 'DONE';  // FIX V3.4: Też DONE - eksport wymaga DONE
       updatedRow[columns.Apply] = ''; // Wyczyść checkbox
 
       updates.push({
@@ -775,8 +784,9 @@ class BulkChangeManager {
   }
 
   /**
-   * Pauzuj wybrane targety (manual) - FIXED V3.2: używa Apply=TRUE zamiast kursora
-   * Pauzuje TYLKO wiersze z Apply=TRUE (checkboxy) i TYLKO targety (Keyword, Product Targeting)
+   * Pauzuj wybrane targety (manual) - FIXED V3.3: używa Apply=TRUE zamiast kursora
+   * Pauzuje wiersze z Apply=TRUE - obsługuje Keyword, Product Targeting, Campaign, Ad Group
+   * V3.3 FIX: Poprawiona detekcja entity - akceptuje różne formaty nazw
    */
   pauseSelectedTargetsManual(minClicks, minSpend) {
     if (!this.builderSheet) {
@@ -792,7 +802,7 @@ class BulkChangeManager {
     let skippedThreshold = 0;
     const updates = [];
 
-    // FIXED V3.2: Iteruj przez WSZYSTKIE wiersze i sprawdź Apply=TRUE
+    // FIXED V3.3: Iteruj przez WSZYSTKIE wiersze i sprawdź Apply=TRUE
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
 
@@ -802,12 +812,21 @@ class BulkChangeManager {
 
       if (!isApplyChecked) continue;
 
-      // FIXED: Sprawdź czy to target (Keyword lub Product Targeting) - Campaign, Ad Group, Product Ad nie można pauzować przez Bid!
-      const entity = row[columns.Entity];
-      const isTarget = (entity === 'Keyword' || entity === 'Product Targeting');
+      // FIXED V3.3: Poprawiona detekcja entity - akceptuje różne formaty
+      const entity = (row[columns.Entity] || '').toString().trim().toLowerCase();
 
-      if (!isTarget) {
+      // Lista dozwolonych entity do pauzowania (State=paused)
+      const pausableEntities = ['keyword', 'product targeting', 'targeting', 'campaign', 'ad group', 'adgroup'];
+      const isTarget = pausableEntities.some(e => entity.includes(e) || e.includes(entity));
+
+      // Sprawdź też czy ma Keyword Text lub Targeting Expression (to też jest target)
+      const keywordText = row[columns.Targeting] || row[columns['Match Type']] || '';
+      const hasKeywordData = keywordText && keywordText.toString().trim().length > 0;
+
+      // FIX V3.3: Jeśli entity jest puste ale ma dane keyword - traktuj jako target
+      if (!isTarget && !hasKeywordData && entity !== '') {
         skippedNotTarget++;
+        Logger.log(`Pominięto: Entity="${entity}" (wiersz ${i+1})`);
         continue;
       }
 
@@ -1101,12 +1120,12 @@ class BulkChangeManager {
               </div>
             </div>
 
-            <!-- NOWE: Wybór zakresu (Apply=TRUE vs ALL) -->
-            <div class="radio-group">
-              <h4>🎯 Które wiersze zmienić?</h4>
-              <label>
+            <!-- UPROSZCZONE: Jeden wybór zakresu -->
+            <div class="radio-group" style="border: 2px solid #667eea; background: #f0f4ff;">
+              <h4>🎯 KROK 1: Które wiersze zmienić? (wybierz JEDEN)</h4>
+              <label style="background: #e8f0fe;">
                 <input type="radio" name="scope" value="apply_true" checked>
-                ✅ Tylko zaznaczone (Apply=TRUE) <span class="count-badge">${applyTrueCount} wierszy</span>
+                ✅ <strong>Tylko zaznaczone</strong> (Apply=TRUE) <span class="count-badge">${applyTrueCount} wierszy</span>
               </label>
               <label>
                 <input type="radio" name="scope" value="all">
@@ -1114,28 +1133,16 @@ class BulkChangeManager {
               </label>
             </div>
 
-            <div class="radio-group">
-              <h4>📈 Kierunek zmiany:</h4>
-              <label>
-                <input type="radio" name="direction" value="increase" checked>
-                📈 Zwiększ stawki (dla targetów z niskim ACOS)
-              </label>
-              <label>
-                <input type="radio" name="direction" value="decrease">
-                📉 Obniż stawki (dla targetów z wysokim ACOS)
-              </label>
-            </div>
-
-            <!-- NOWE: Wybór trybu zmiany (procentowy vs kwotowy) -->
-            <div class="radio-group">
-              <h4>💱 Tryb zmiany:</h4>
-              <label>
+            <!-- UPROSZCZONE: Tryb zmiany (bez osobnego kierunku) -->
+            <div class="radio-group" style="border: 2px solid #fa709a; background: #fff5f5;">
+              <h4>💱 KROK 2: Jak zmienić stawkę? (wybierz JEDEN)</h4>
+              <label style="background: #ffe8e8;">
                 <input type="radio" name="changeMode" value="percent" checked onchange="toggleChangeMode()">
-                📊 Procentowy (np. +15%, -20%)
+                📊 <strong>Procentowo</strong> (np. +15% zwiększ, -20% obniż)
               </label>
               <label>
                 <input type="radio" name="changeMode" value="fixed" onchange="toggleChangeMode()">
-                💵 Kwotowy (np. +0.10€, -0.05€)
+                💵 Kwotowo (np. +0.10€ zwiększ, -0.05€ obniż)
               </label>
               <label>
                 <input type="radio" name="changeMode" value="set" onchange="toggleChangeMode()">
@@ -1202,7 +1209,6 @@ class BulkChangeManager {
 
             function changeBids() {
               const scope = document.querySelector('input[name="scope"]:checked').value;
-              const direction = document.querySelector('input[name="direction"]:checked').value;
               const mode = document.querySelector('input[name="changeMode"]:checked').value;
 
               let changeData = { mode: mode, scope: scope };
@@ -1214,15 +1220,11 @@ class BulkChangeManager {
                 } else {
                   percent = parseFloat(percent);
                 }
-                // Upewnij się że znak zgadza się z kierunkiem
-                if (direction === 'increase' && percent < 0) percent = Math.abs(percent);
-                if (direction === 'decrease' && percent > 0) percent = -Math.abs(percent);
+                // FIX V3.3: Znak wartości określa kierunek (+ = zwiększ, - = obniż)
                 changeData.value = percent;
               } else if (mode === 'fixed') {
                 let amount = parseFloat(document.getElementById('fixedAmount').value);
-                // Upewnij się że znak zgadza się z kierunkiem
-                if (direction === 'increase' && amount < 0) amount = Math.abs(amount);
-                if (direction === 'decrease' && amount > 0) amount = -Math.abs(amount);
+                // FIX V3.3: Znak wartości określa kierunek
                 changeData.value = amount;
               } else if (mode === 'set') {
                 changeData.value = parseFloat(document.getElementById('setValue').value);
@@ -1296,12 +1298,19 @@ class BulkChangeManager {
 
       if (!shouldProcess) continue;
 
-      // FIXED V3.2: Stawki (Bid) można zmieniać TYLKO dla targetów!
-      const entity = row[columns.Entity];
-      const isTarget = (entity === 'Keyword' || entity === 'Product Targeting');
+      // FIXED V3.3: Stawki (Bid) można zmieniać dla targetów (Keyword, Product Targeting)
+      const entity = (row[columns.Entity] || '').toString().trim().toLowerCase();
 
-      if (!isTarget) {
+      // Targety które mają stawkę Bid
+      const bidEntities = ['keyword', 'product targeting', 'targeting'];
+      const isTarget = bidEntities.some(e => entity.includes(e) || e.includes(entity));
+
+      // FIX V3.3: Jeśli entity puste ale ma kolumnę Bid z wartością - to target
+      const hasBidValue = this.parseNumber(row[columns.Bid]) > 0;
+
+      if (!isTarget && !hasBidValue) {
         skippedNotTarget++;
+        Logger.log(`Pominięto bid dla: Entity="${entity}" (wiersz ${i+1})`);
         continue;
       }
 
@@ -1402,12 +1411,19 @@ class BulkChangeManager {
 
       if (!shouldProcess) continue;
 
-      // FIXED V3.2: Stawki (Bid) można zmieniać TYLKO dla targetów!
-      const entity = row[columns.Entity];
-      const isTarget = (entity === 'Keyword' || entity === 'Product Targeting');
+      // FIXED V3.3: Stawki (Bid) można zmieniać dla targetów (Keyword, Product Targeting)
+      const entity = (row[columns.Entity] || '').toString().trim().toLowerCase();
 
-      if (!isTarget) {
+      // Targety które mają stawkę Bid
+      const bidEntities = ['keyword', 'product targeting', 'targeting'];
+      const isTarget = bidEntities.some(e => entity.includes(e) || e.includes(entity));
+
+      // FIX V3.3: Jeśli entity puste ale ma kolumnę Bid z wartością - to target
+      const hasBidValue = this.parseNumber(row[columns.Bid]) > 0;
+
+      if (!isTarget && !hasBidValue) {
         skippedNotTarget++;
+        Logger.log(`Pominięto bid dla: Entity="${entity}" (wiersz ${i+1})`);
         continue;
       }
 
@@ -1933,7 +1949,7 @@ class BulkChangeManager {
 
       const row = data[i];
       const updatedRow = [...row];
-      updatedRow[columns.ChangesDONE] = `Added ${keywords.length} negative keywords`;
+      updatedRow[columns.ChangesDONE] = 'DONE';  // FIX V3.4: Zawsze DONE
       updatedRow[columns.Action] = 'ADD_NEGATIVE';
       updatedRow[columns.Reason] = `Dodano ${keywords.length} negatywnych słów: ${keywords.slice(0, 3).join(', ')}${keywords.length > 3 ? '...' : ''}`;
 

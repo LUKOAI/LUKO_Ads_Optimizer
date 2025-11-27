@@ -547,8 +547,28 @@ function selectTargetsByCriteria() {
 
 /**
  * Pomocnicza - zaznacz bez sprzedaży
+ * FIX V3.3: Dodano parametr minClicks z dialogiem
  */
 function selectNoSalesTargets() {
+  const ui = SpreadsheetApp.getUi();
+
+  // Pytaj o minimalną liczbę kliknięć
+  const response = ui.prompt(
+    '🎯 Zaznacz targety bez sprzedaży',
+    'Podaj minimalną liczbę kliknięć (domyślnie 5):',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (response.getSelectedButton() !== ui.Button.OK) return;
+
+  const minClicksInput = response.getResponseText().trim();
+  const minClicks = minClicksInput ? parseInt(minClicksInput) : 5;
+
+  if (isNaN(minClicks) || minClicks < 1) {
+    ui.alert('❌ Błąd', 'Podaj poprawną liczbę (minimum 1)', ui.ButtonSet.OK);
+    return;
+  }
+
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName('BULK_Builder');
@@ -562,33 +582,43 @@ function selectNoSalesTargets() {
 
     const applyCol = headers.findIndex(h => h === 'Apply');
     const ordersCol = headers.findIndex(h => h.toString().toLowerCase().includes('orders'));
+    const salesCol = headers.findIndex(h => h.toString().toLowerCase().includes('sales') && !h.toString().toLowerCase().includes('units'));
     const clicksCol = headers.findIndex(h => h.toString().toLowerCase().includes('clicks'));
     const entityCol = headers.findIndex(h => h.toString().toLowerCase().includes('entity'));
 
     let selectedCount = 0;
+    let totalChecked = 0;
 
     for (let i = 1; i < data.length; i++) {
-      const entity = data[i][entityCol];
+      const entity = (data[i][entityCol] || '').toString().trim().toLowerCase();
 
-      if (entity !== 'Keyword' && entity !== 'Product Targeting') continue;
+      // FIX V3.3: Akceptuj różne formaty entity
+      const isTarget = entity.includes('keyword') || entity.includes('targeting') || entity === '';
+
+      if (!isTarget) continue;
+      totalChecked++;
 
       const orders = universalParser.parseNumber(data[i][ordersCol]);
+      const sales = universalParser.parseNumber(data[i][salesCol]);
       const clicks = universalParser.parseNumber(data[i][clicksCol]);
 
-      if (orders === 0 && clicks > 20) {
+      // FIX V3.3: Użyj parametru minClicks i sprawdź też sales
+      if ((orders === 0 || sales === 0) && clicks >= minClicks) {
         sheet.getRange(i + 1, applyCol + 1).setValue(true);
         selectedCount++;
       }
     }
 
-    SpreadsheetApp.getUi().alert(
+    ui.alert(
       '✅ Zaznaczono',
-      `Zaznaczono ${selectedCount} targetów bez sprzedaży\n(0 orders, >20 clicks)`,
-      SpreadsheetApp.getUi().ButtonSet.OK
+      `Zaznaczono ${selectedCount} targetów bez sprzedaży\n` +
+      `Kryterium: 0 zamówień/sprzedaży, ≥${minClicks} kliknięć\n` +
+      `Sprawdzono: ${totalChecked} targetów`,
+      ui.ButtonSet.OK
     );
 
   } catch (error) {
-    SpreadsheetApp.getUi().alert('❌ Błąd', error.toString(), SpreadsheetApp.getUi().ButtonSet.OK);
+    ui.alert('❌ Błąd', error.toString(), ui.ButtonSet.OK);
   }
 }
 

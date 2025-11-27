@@ -1,7 +1,13 @@
 // ===== 14-BULKANALYZER.JS - KOMPLEKSOWA ANALIZA TARGETÓW =====
-// Wersja: 3.3 FIXED - Naprawiona auto-selekcja targetów
+// Wersja: 3.4 FIXED - Naprawiona auto-selekcja i progi
 // Autor: LUKO AI
-// Data: 2024-11-27
+// Data: 2025-11-27
+//
+// ZMIANY W V3.4 (2025-11-27):
+// - Obniżone progi: minClicksForPause=10 (z 30), minSpendForPause=5 (z 10)
+// - Auto-select dla 5+ kliknięć bez sprzedaży (wcześniej 10+)
+// - Toast zamykany po zakończeniu analizy
+// - Lepsze zamykanie toastów przed podsumowaniem
 //
 // ZMIANY W V3.3 (2024-11-27):
 // - PAUSE_NORMAL: autoSelect: true (wcześniej false) - targety z 10+ kliknięć/5€+ bez sprzedaży są automatycznie zaznaczane
@@ -27,12 +33,12 @@ class BulkAnalyzer {
     this.parser = universalParser;
     this.acosSettings = getAcosSettings();
 
-    // Progi domyślne (można nadpisać w dialogu)
+    // Progi domyślne - FIX V3.4: Obniżone dla lepszej auto-selekcji
     this.thresholds = {
-      minClicksForPause: 30,
-      minSpendForPause: 10,
-      minClicksForAnalysis: 5,
-      minSpendForAnalysis: 1
+      minClicksForPause: 10,     // Obniżone z 30 - targety z 10+ kliknięć bez sprzedaży
+      minSpendForPause: 5,       // Obniżone z 10€ - targety z 5€+ bez sprzedaży
+      minClicksForAnalysis: 3,   // Obniżone z 5
+      minSpendForAnalysis: 0.5   // Obniżone z 1€
     };
 
     // Kolory dla różnych akcji (z odcieniami)
@@ -467,11 +473,19 @@ class BulkAnalyzer {
       this.logger.log(`📊 Z Full Analysis: ${stats.fromFullAnalysis}`, 'INFO');
       this.logger.log(`✅ Automatycznie zaznaczono: ${stats.autoSelected}`, 'INFO');
 
-      // ZMIANA: Zamknij toast w rogu ekranu
-      this.ss.toast('', '', 0);
+      // FIX V3.4: Zamknij WSZYSTKIE toasty przed pokazaniem podsumowania
+      try {
+        this.ss.toast('', '', 0);  // Zamknij stary toast
+      } catch(e) { /* ignore */ }
 
       // Pokaż szczegółowe podsumowanie
       this.showDetailedSummary(stats, elapsed);
+
+      // FIX V3.4: Zamknij toast ponownie po pokazaniu podsumowania (na wszelki wypadek)
+      Utilities.sleep(100);
+      try {
+        this.ss.toast('', '', 0);
+      } catch(e) { /* ignore */ }
 
       return {
         success: true,
@@ -618,32 +632,31 @@ class BulkAnalyzer {
         };
       }
 
-      // Normalne - poniżej progów ale bez sprzedaży
-      // FIX V3.3: autoSelect: true dla targetów z clicks >= 10 lub spend >= 5
-      // Te targety kosztują pieniądze bez efektu - powinny być automatycznie zaznaczone
-      if (clicks >= 10 || spend >= 5) {
+      // FIX V3.4: KAŻDY target z 5+ kliknięć i 0 sprzedaży powinien być auto-zaznaczony!
+      // To jest główna funkcja optymalizacji - zatrzymaj straty
+      if (clicks >= 5 || spend >= 3) {
         return {
           action: 'PAUSE',
-          reason: `${clicks} kliknięć, ${spend.toFixed(2)}€ wydane, 0 zamówień - target nieefektywny`,
+          reason: `⚠️ ${clicks} kliknięć, ${spend.toFixed(2)}€ wydane, 0 zamówień - target nieefektywny, zalecana pauza`,
           confidence: 0.75,
           urgency: 'MEDIUM',
-          autoSelect: true,  // FIX: Zaznaczamy automatycznie - bez sprzedaży = pauza
+          autoSelect: true,  // FIX V3.4: ZAWSZE zaznaczaj targety 5+ clicks bez sprzedaży
           color: this.colors.PAUSE_NORMAL,
           classification: 'PAUSE_NORMAL',
           source: 'ANALYZED'
         };
       }
 
-      // Mało danych - jeszcze monitoruj
+      // FIX V3.4: Nawet 3+ kliknięć bez sprzedaży - sugeruj pauzę (ale nie auto-select)
       if (clicks >= 3) {
         return {
-          action: 'MONITOR',
-          reason: `${clicks} kliknięć, ${spend.toFixed(2)}€, 0 zamówień - za mało danych, monitoruj`,
+          action: 'PAUSE',
+          reason: `${clicks} kliknięć, ${spend.toFixed(2)}€, 0 zamówień - rozważ pauzę`,
           confidence: 0.60,
           urgency: 'LOW',
-          autoSelect: false,
-          color: this.colors.MONITOR,
-          classification: 'MONITOR',
+          autoSelect: false,  // Nie auto-select, ale sugeruj pauzę
+          color: this.colors.PAUSE_NORMAL,
+          classification: 'PAUSE_NORMAL',
           source: 'ANALYZED'
         };
       }
