@@ -40,12 +40,15 @@ class BulkMapper {
   showMappingDialog() {
     // Używamy this.ss które już mamy
     const ui = SpreadsheetApp.getUi();
-    const sourceSheet = this.ss.getSheetByName('BULK_Source');
+    // V6.2: Używaj helper function dla kompatybilności wstecznej
+    const sourceSheet = typeof getBulkSourceSheet === 'function'
+      ? getBulkSourceSheet()
+      : this.ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE) || this.ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD);
 
     if (!sourceSheet) {
       ui.alert(
         '❌ Brak danych',
-        'Najpierw wgraj raport Amazon do arkusza "BULK_Source"',
+        `Najpierw wgraj raport Amazon do arkusza "${LUKO_CONFIG.SHEETS.BULK_SOURCE}"`,
         ui.ButtonSet.OK
       );
       return;
@@ -403,16 +406,18 @@ class BulkMapper {
       this.logger.log('=== BULK MAPPER START ===', 'INFO');
       this.logger.log(`Filtry: ${JSON.stringify(filters)}`, 'INFO');
 
-      // Pobierz arkusz źródłowy
-      const bulkSource = this.ss.getSheetByName('BULK_Source');
+      // V6.2: Pobierz arkusz źródłowy z kompatybilnością wsteczną
+      const bulkSource = typeof getBulkSourceSheet === 'function'
+        ? getBulkSourceSheet()
+        : this.ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE) || this.ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD);
       if (!bulkSource || bulkSource.getLastRow() < 2) {
-        throw new Error('Brak danych w BULK_Source - wgraj raport Amazon');
+        throw new Error(`Brak danych w ${LUKO_CONFIG.SHEETS.BULK_SOURCE} - wgraj raport Amazon`);
       }
 
       const totalRows = bulkSource.getLastRow();
       const totalCols = bulkSource.getLastColumn();
 
-      this.logger.log(`BULK_Source: ${totalRows} wierszy × ${totalCols} kolumn`, 'INFO');
+      this.logger.log(`${bulkSource.getName()}: ${totalRows} wierszy × ${totalCols} kolumn`, 'INFO');
 
       // Pobierz nagłówki i dane
       const headers = bulkSource.getRange(1, 1, 1, totalCols).getValues()[0];

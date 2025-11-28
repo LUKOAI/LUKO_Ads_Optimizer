@@ -39,8 +39,13 @@ class MetricsCalculator {
       sheetToAnalyze = ss.getSheetByName(sourceSheet);
       analysisSource = sourceSheet;
     } else {
-      const amazonSheet = ss.getSheetByName('tu wklejasz raport z amazon');
-      const bulkSheet = ss.getSheetByName('BULK_Source');
+      // V6.2: Używaj helper functions dla kompatybilności wstecznej
+      const amazonSheet = typeof getAmazonReportSheet === 'function'
+        ? getAmazonReportSheet()
+        : ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT) || ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT_OLD);
+      const bulkSheet = typeof getBulkSourceSheet === 'function'
+        ? getBulkSourceSheet()
+        : ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE) || ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD);
 
       if (amazonSheet && amazonSheet.getLastRow() > 1) {
         sheetToAnalyze = amazonSheet;

@@ -162,7 +162,10 @@ class LukoLogger {
 // FUNKCJA DIAGNOSTYCZNA
 function debugDataParsing() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('tu wklejasz raport z amazon');
+  // V6.2: Używaj helper function dla kompatybilności wstecznej
+  const sheet = typeof getAmazonReportSheet === 'function'
+    ? getAmazonReportSheet()
+    : ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT) || ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT_OLD);
 
   if (!sheet) {
     SpreadsheetApp.getUi().alert('Brak arkusza z danymi!');

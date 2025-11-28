@@ -476,7 +476,10 @@ function runFullAnalysisDirect() {
  */
 function calculateSimpleMetrics() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('tu wklejasz raport z amazon');
+  // V6.2: Używaj helper function dla kompatybilności wstecznej
+  const sheet = typeof getAmazonReportSheet === 'function'
+    ? getAmazonReportSheet()
+    : ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT) || ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT_OLD);
 
   if (!sheet || sheet.getLastRow() < 2) {
     return {

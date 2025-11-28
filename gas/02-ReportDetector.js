@@ -10,6 +10,16 @@ class UltraReportDetector {
     this.logger = logger;
     
     this.reportTypes = {
+      // BULK/SP Report - najwyższy priorytet dla raportów z Amazon Bulk
+      SP_BULK_REPORT: {
+        required: ['impressions'],
+        identifying: ['campaign', 'ad_group', 'targeting'],
+        patterns: ['bulk', 'sp_search', 'sponsored_products'],
+        excludes: [],
+        priority: 110,
+        description: 'Amazon SP Bulk/Search Term Report'
+      },
+
       CAMPAIGN_REPORT: {
         required: ['campaign', 'impressions'],
         identifying: ['campaign', 'spend', 'sales'],
@@ -18,16 +28,16 @@ class UltraReportDetector {
         priority: 100,
         description: 'Amazon Campaign Performance Report'
       },
-      
+
       SEARCH_TERM_REPORT: {
-        required: ['search_term', 'impressions'],
-        identifying: ['customer.*search.*term', 'search.*term'],
-        patterns: ['search.*term', 'suchbegriff'],
-        excludes: ['campaign.*only'],
+        required: ['impressions'],
+        identifying: ['customer.*search.*term', 'search.*term', 'query'],
+        patterns: ['search.*term', 'suchbegriff', 'sponsored_products_search'],
+        excludes: [],
         priority: 95,
         description: 'Amazon Search Term Report'
       },
-      
+
       KEYWORD_REPORT: {
         required: ['keyword', 'impressions'],
         identifying: ['keyword.*text', 'schlüsselwort'],
@@ -36,13 +46,13 @@ class UltraReportDetector {
         priority: 90,
         description: 'Amazon Keyword Report'
       },
-      
+
       TARGET_REPORT: {
-        required: ['target', 'impressions'],
-        identifying: ['target', 'targeting.*expression'],
+        required: ['impressions'],
+        identifying: ['target', 'targeting.*expression', 'targeting'],
         patterns: ['target', 'targeting'],
-        excludes: ['search.*term', 'keyword.*text'],
-        priority: 75,
+        excludes: [],
+        priority: 85,
         description: 'Amazon Product Targeting Report'
       }
     };
@@ -162,11 +172,35 @@ class UltraReportDetector {
   // WYKRYWANIE TYPU RAPORTU
   detectReportType(headers, sheetName) {
     this.logger.log(`🧠 Report type detection for: ${sheetName}`, 'DEBUG');
-    
+
     const normalizedHeaders = headers.map(h => this.normalizeHeader(h));
     const headerText = normalizedHeaders.join(' ').toLowerCase();
-    const nameText = sheetName.toLowerCase();
-    
+    const nameText = sheetName.toLowerCase().replace(/[_\s]+/g, '_');
+
+    // BONUS: Rozpoznawanie po standardowych nazwach arkuszy Amazon
+    // V6.2: Dodane nowe nazwy i stare dla kompatybilności
+    const sheetNamePatterns = {
+      // Nowe nazwy V6.2
+      'sponsored_products_search_term': 'SEARCH_TERM_REPORT',
+      'sp_bulk_report': 'SP_BULK_REPORT',
+      // Stare nazwy
+      'sp_search_term': 'SEARCH_TERM_REPORT',
+      'sp_bulk': 'SP_BULK_REPORT',
+      'bulk_report': 'SP_BULK_REPORT',
+      'bulk_source': 'SP_BULK_REPORT',
+      // Stara polska nazwa
+      'tu_wklejasz_raport': 'SEARCH_TERM_REPORT'
+    };
+
+    let sheetNameBonus = null;
+    for (const [pattern, reportType] of Object.entries(sheetNamePatterns)) {
+      if (nameText.includes(pattern)) {
+        sheetNameBonus = reportType;
+        this.logger.log(`📛 Sheet name matches pattern "${pattern}" → ${reportType}`, 'DEBUG');
+        break;
+      }
+    }
+
     let bestMatch = { type: null, confidence: 0, details: {} };
     
     const sortedTypes = Object.entries(this.reportTypes)
@@ -174,9 +208,15 @@ class UltraReportDetector {
     
     sortedTypes.forEach(([typeName, typeConfig]) => {
       const score = this.calculateTypeScore(headerText, nameText, normalizedHeaders, typeConfig);
-      
+
+      // BONUS: Dodaj punkty jeśli nazwa arkusza pasuje do tego typu raportu
+      if (sheetNameBonus === typeName) {
+        score.total += 0.25;
+        this.logger.log(`📛 +0.25 bonus za nazwę arkusza dla ${typeName}`, 'DEBUG');
+      }
+
       this.logger.log(`📊 ${typeName}: ${score.total.toFixed(2)} points`, 'DEBUG');
-      
+
       if (score.total > bestMatch.confidence) {
         bestMatch = {
           type: typeName,
@@ -187,7 +227,8 @@ class UltraReportDetector {
       }
     });
     
-    if (bestMatch.confidence < 0.5) {
+    // Obniżony próg do 0.35 - raporty Amazon często mają różne formaty
+    if (bestMatch.confidence < 0.35) {
       this.logger.log(`❌ No type matched minimum threshold (best: ${bestMatch.type} with ${bestMatch.confidence.toFixed(2)})`, 'WARNING');
       return { type: null, confidence: 0 };
     }

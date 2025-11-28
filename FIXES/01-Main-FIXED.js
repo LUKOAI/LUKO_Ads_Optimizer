@@ -1,7 +1,7 @@
 /**
  * ===== 01-MAIN.JS - GŁÓWNY KONTROLER LUKO ANALYZER =====
  * LUKO AMZ Ads Optimizer
- * Version: 6.1 - ZINTEGROWANA Z NOWYMI MODUŁAMI
+ * Version: 6.2 - NOWE NAZWY ARKUSZY + UKRYTA STREFA 2
  * Author: Łukasz Koronczok, NetAnaliza
  *
  * Ten plik zawiera:
@@ -11,14 +11,22 @@
  * - Konfigurację ACOS
  * - Analizy: Textual, Full, Snapshot
  *
+ * FIXES V6.2:
+ * - NOWE NAZWY ARKUSZY: Sponsored_Products_Search_term, SP_Bulk_Report
+ * - Kompatybilność wsteczna ze starymi nazwami (BULK_Source, tu wklejasz raport z amazon)
+ * - Helper functions: getAmazonReportSheet(), getBulkSourceSheet()
+ * - Ukryta STREFA 2 w BulkChangeManager (tymczasowo)
+ * - Ukryte menu: "Dodaj negatywy", "Przenieś do pozytywnych"
+ * - Ulepszone wykrywanie raportów (ReportDetector) - obniżony próg, bonus za nazwę arkusza
+ *
  * FIXES V3.0:
- * - clearAllData NIE kasuje BULK_Source ani "tu wklejasz raport z amazon"
+ * - clearAllData NIE kasuje arkuszy źródłowych
  * - showBulkAnalysisDialog wywołuje runAnalysis() zamiast showAnalysisDialog()
  * - LukoAnalyzer ma bezpieczny logger (fallback gdy LukoLogger nie istnieje)
  */
 
 const LUKO_CONFIG = {
-  VERSION: '6.1',
+  VERSION: '6.2',
   SHEET_PREFIX: 'LUKO_',
   BREAK_EVEN_ACOS: 25,
   SHEETS: {
@@ -26,12 +34,83 @@ const LUKO_CONFIG = {
     FULL_ANALYSIS: 'LUKO_Full_Analysis',
     SNAPSHOT: 'LUKO_Snapshot',
     DEBUG: 'LUKO_Debug_Log',
-    BULK_SOURCE: 'BULK_Source',
+    // NOWE NAZWY ARKUSZY V6.2 - bez spacji, zgodne z Amazon
+    AMAZON_REPORT: 'Sponsored_Products_Search_term',      // Główny raport z Amazon Ads
+    BULK_SOURCE: 'SP_Bulk_Report',                        // Raport z Bulk Operations
+    // Stare nazwy dla kompatybilności wstecznej
+    AMAZON_REPORT_OLD: 'tu wklejasz raport z amazon',
+    BULK_SOURCE_OLD: 'BULK_Source',
+    // Pozostałe arkusze BULK
     BULK_BUILDER: 'BULK_Builder',
     BULK_EXPORT: 'BULK_Export',
     BULK_CHANGES_LOG: 'BULK_Changes_Log'
   }
 };
+
+// ===== HELPER: Pobieranie arkuszy z kompatybilnością wsteczną =====
+/**
+ * Pobiera arkusz Amazon Report - sprawdza nową i starą nazwę
+ * @returns {Sheet|null}
+ */
+function getAmazonReportSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // Najpierw sprawdź nową nazwę
+  let sheet = ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT);
+  if (sheet) return sheet;
+  // Fallback do starej nazwy
+  return ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT_OLD);
+}
+
+/**
+ * Pobiera arkusz BULK Source - sprawdza nową i starą nazwę
+ * @returns {Sheet|null}
+ */
+function getBulkSourceSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // Najpierw sprawdź nową nazwę
+  let sheet = ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE);
+  if (sheet) return sheet;
+  // Fallback do starej nazwy
+  return ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD);
+}
+
+/**
+ * Tworzy arkusz BULK Source z nową nazwą (lub zwraca istniejący)
+ * @returns {Sheet}
+ */
+function getOrCreateBulkSourceSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // Najpierw sprawdź czy istnieje (nowa lub stara nazwa)
+  let sheet = getBulkSourceSheet();
+  if (sheet) {
+    // Jeśli ma starą nazwę, zmień na nową
+    if (sheet.getName() === LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD) {
+      sheet.setName(LUKO_CONFIG.SHEETS.BULK_SOURCE);
+    }
+    return sheet;
+  }
+  // Utwórz nowy z nową nazwą
+  return ss.insertSheet(LUKO_CONFIG.SHEETS.BULK_SOURCE);
+}
+
+/**
+ * Tworzy arkusz Amazon Report z nową nazwą (lub zwraca istniejący)
+ * @returns {Sheet}
+ */
+function getOrCreateAmazonReportSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // Najpierw sprawdź czy istnieje (nowa lub stara nazwa)
+  let sheet = getAmazonReportSheet();
+  if (sheet) {
+    // Jeśli ma starą nazwę, zmień na nową
+    if (sheet.getName() === LUKO_CONFIG.SHEETS.AMAZON_REPORT_OLD) {
+      sheet.setName(LUKO_CONFIG.SHEETS.AMAZON_REPORT);
+    }
+    return sheet;
+  }
+  // Utwórz nowy z nową nazwą
+  return ss.insertSheet(LUKO_CONFIG.SHEETS.AMAZON_REPORT);
+}
 
 // ===== UNIWERSALNY PARSER LICZB =====
 const universalParser = {
@@ -246,15 +325,15 @@ function initializeBulkWithHeaders() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const ui = SpreadsheetApp.getUi();
 
-    // Sprawdź czy jest BULK_Source
-    let sourceSheet = ss.getSheetByName('BULK_Source');
+    // V6.2: Sprawdź czy jest SP_Bulk_Report (lub stara nazwa BULK_Source)
+    let sourceSheet = getBulkSourceSheet();
     if (!sourceSheet) {
-      sourceSheet = ss.insertSheet('BULK_Source');
+      sourceSheet = ss.insertSheet(LUKO_CONFIG.SHEETS.BULK_SOURCE);
       sourceSheet.getRange('A1').setValue('👉 WKLEJ TUTAJ BULK Z AMAZON (Sponsored Products Campaigns)');
       sourceSheet.getRange('A1').setBackground('#fff3cd').setFontWeight('bold');
       sourceSheet.getRange('A1:J1').merge();
       ui.alert(
-        '✅ Utworzono BULK_Source',
+        `✅ Utworzono ${LUKO_CONFIG.SHEETS.BULK_SOURCE}`,
         'Pobierz Bulk z Amazon → skopiuj wszystko → wklej tutaj, potem ponów „Inicjalizuj BULK".',
         ui.ButtonSet.OK
       );
@@ -1257,7 +1336,7 @@ function showDebugLog() {
 }
 
 /**
- * FIXED: clearAllData NIE kasuje BULK_Source ani "tu wklejasz raport z amazon"
+ * FIXED V6.2: clearAllData NIE kasuje arkuszy źródłowych (stare i nowe nazwy)
  */
 function clearAllData() {
   if (!verifyApiKeyBeforeAction()) return;
@@ -1267,7 +1346,10 @@ function clearAllData() {
     const result = ui.alert(
       'Potwierdzenie',
       'Czy na pewno chcesz usunąć wszystkie arkusze LUKO_* i BULK_*?\n\n' +
-      '⚠️ BULK_Source i "tu wklejasz raport z amazon" NIE zostaną usunięte!',
+      `⚠️ Arkusze źródłowe NIE zostaną usunięte:\n` +
+      `• ${LUKO_CONFIG.SHEETS.BULK_SOURCE}\n` +
+      `• ${LUKO_CONFIG.SHEETS.AMAZON_REPORT}\n` +
+      `• (oraz stare nazwy dla kompatybilności)`,
       ui.ButtonSet.YES_NO
     );
 
@@ -1275,11 +1357,13 @@ function clearAllData() {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const sheets = ss.getSheets();
 
-      // FIXED: Lista arkuszy do ZACHOWANIA
+      // V6.2: Lista arkuszy do ZACHOWANIA (nowe i stare nazwy)
       const protectedSheets = [
-        'bulk_source',
-        'tu wklejasz raport z amazon',
-        'tu wklejasz raport z amazo'
+        LUKO_CONFIG.SHEETS.BULK_SOURCE.toLowerCase(),           // SP_Bulk_Report
+        LUKO_CONFIG.SHEETS.AMAZON_REPORT.toLowerCase(),         // Sponsored_Products_Search_term
+        LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD.toLowerCase(),       // BULK_Source
+        LUKO_CONFIG.SHEETS.AMAZON_REPORT_OLD.toLowerCase(),     // tu wklejasz raport z amazon
+        'tu wklejasz raport z amazo'                            // skrócona wersja na wszelki wypadek
       ];
 
       let deletedCount = 0;
@@ -1287,9 +1371,9 @@ function clearAllData() {
         const name = sheet.getName();
         const nameLower = name.toLowerCase();
 
-        // FIXED: Sprawdź czy arkusz jest chroniony
+        // V6.2: Sprawdź czy arkusz jest chroniony (nowe i stare nazwy)
         const isProtected = protectedSheets.some(p =>
-          nameLower === p || nameLower.includes('tu wklejasz')
+          nameLower === p || nameLower.includes('tu wklejasz') || nameLower.includes('sponsored_products_search')
         );
 
         if (isProtected) {

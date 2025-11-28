@@ -37,17 +37,21 @@ class SnapshotAnalyzer {
       this.logger.log('🚀 STARTING SNAPSHOT ANALYSIS - LUKO V6.0', 'INFO');
 
       const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const primarySheet = ss.getSheetByName('tu wklejasz raport z amazon');
+      // V6.2: Używaj helper function dla kompatybilności wstecznej
+      const primarySheet = typeof getAmazonReportSheet === 'function'
+        ? getAmazonReportSheet()
+        : ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT) || ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT_OLD);
+      const sheetName = primarySheet ? primarySheet.getName() : null;
 
       if (!primarySheet || primarySheet.getLastRow() < 2) {
-        throw new Error('Brak danych w arkuszu "tu wklejasz raport z amazon"');
+        throw new Error(`Brak danych w arkuszu "${LUKO_CONFIG.SHEETS.AMAZON_REPORT}" (lub "${LUKO_CONFIG.SHEETS.AMAZON_REPORT_OLD}")`);
       }
 
       // FIX: Bezpieczne tworzenie MetricsCalculator
       let metrics;
       if (typeof MetricsCalculator === 'function') {
         const calc = new MetricsCalculator(this.logger);
-        metrics = calc.calculateMetrics(null, 'tu wklejasz raport z amazon');
+        metrics = calc.calculateMetrics(null, sheetName);
       } else {
         this.logger.log('MetricsCalculator not found, using simple calculation', 'WARNING');
         metrics = this.calculateSimpleMetrics(primarySheet);

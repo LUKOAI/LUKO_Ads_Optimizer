@@ -197,6 +197,7 @@ class BulkChangeManager {
               </div>
             </div>
 
+            <!-- STREFA 2 TYMCZASOWO UKRYTA - W BUDOWIE
             <div class="divider"></div>
 
             <div class="section">
@@ -219,6 +220,7 @@ class BulkChangeManager {
             </div>
 
             <div class="divider"></div>
+            KONIEC STREFY 2 -->
 
             <div style="text-align: center; color: #999; font-size: 12px;">
               <p>⚡ Wszystkie zmiany są zapisywane w kolumnie ChangesDONE</p>
