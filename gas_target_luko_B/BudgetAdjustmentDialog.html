@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .campaign-item {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin: 10px 0;
+    }
+    .campaign-name {
+      font-weight: bold;
+      color: #333;
+    }
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 10px 0;
+    }
+    .metric {
+      font-size: 12px;
+      color: #666;
+    }
+    .budget-input {
+      width: 100px;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 3px;
+    }
+    .utilization-bar {
+      height: 20px;
+      background: #e0e0e0;
+      border-radius: 3px;
+      margin: 5px 0;
+      position: relative;
+    }
+    .utilization-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s;
+    }
+    .low { background: #4CAF50; }
+    .medium { background: #FFC107; }
+    .high { background: #FF5722; }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .apply-btn { background: #4CAF50; color: white; }
+    .cancel-btn { background: #f44336; color: white; }
+  </style>
+</head>
+<body>
+  <h3>💰 Dostosuj Budżety Kampanii</h3>
+  
+  <div id="campaigns-list"></div>
+  
+  <div style="text-align: center; margin-top: 20px;">
+    <button class="apply-btn" onclick="applyBudgetChanges()">Zastosuj</button>
+    <button class="cancel-btn" onclick="google.script.host.close()">Anuluj</button>
+  </div>
+  
+  <script>
+    // Tu będzie kod do zarządzania budżetami
+    const campaigns = <?!= JSON.stringify(campaigns) ?>;
+    
+    function renderCampaigns() {
+      const container = document.getElementById('campaigns-list');
+      let html = '';
+      
+      for (const [name, data] of Object.entries(campaigns)) {
+        const utilization = (data.totalSpend / data.budget) * 100;
+        const utilizationClass = utilization < 60 ? 'low' : utilization < 80 ? 'medium' : 'high';
+        
+        html += `
+          <div class="campaign-item">
+            <div class="campaign-name">${name}</div>
+            <div class="metrics">
+              <div class="metric">Budżet: €${data.budget}</div>
+              <div class="metric">Wydatki: €${data.totalSpend.toFixed(2)}</div>
+              <div class="metric">Wykorzystanie: ${utilization.toFixed(0)}%</div>
+              <div class="metric">ACOS: ${(data.avgACOS.reduce((a,b)=>a+b,0)/data.avgACOS.length).toFixed(1)}%</div>
+            </div>
+            <div class="utilization-bar">
+              <div class="utilization-fill ${utilizationClass}" style="width: ${Math.min(utilization, 100)}%"></div>
+            </div>
+            <label>Nowy budżet: €<input type="number" class="budget-input" id="budget_${name}" value="${data.budget}" min="1" step="0.5"></label>
+          </div>
+        `;
+      }
+      
+      container.innerHTML = html;
+    }
+    
+    function applyBudgetChanges() {
+      const changes = {};
+      for (const name of Object.keys(campaigns)) {
+        const newBudget = document.getElementById('budget_' + name).value;
+        if (newBudget != campaigns[name].budget) {
+          changes[name] = parseFloat(newBudget);
+        }
+      }
+      
+      google.script.run
+        .withSuccessHandler(() => google.script.host.close())
+        .applyBudgetChanges(changes);
+    }
+    
+    // Renderuj na start
+    renderCampaigns();
+  </script>
+</body>
+</html>

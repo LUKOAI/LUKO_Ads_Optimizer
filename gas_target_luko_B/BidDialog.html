@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+</head>
+<body>
+  <div style="padding: 20px;">
+    <h3>Zmień stawkę</h3>
+    <p>Keyword: <strong id="keyword"></strong></p>
+    <p>Obecna stawka: <strong id="current"></strong></p>
+    <p>Sugerowana zmiana: <strong id="suggested"></strong></p>
+    
+    <label>Nowa stawka (%):</label>
+    <input type="number" id="newValue" value="20" style="width: 100px;">
+    
+    <br><br>
+    <button onclick="apply()">Zastosuj</button>
+    <button onclick="google.script.host.close()">Anuluj</button>
+  </div>
+  
+  <script>
+    function apply() {
+      const value = document.getElementById('newValue').value;
+      google.script.run
+        .withSuccessHandler(() => google.script.host.close())
+        .applyBidChange(value);
+    }
+  </script>
+</body>
+</html>
