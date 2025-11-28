@@ -259,11 +259,16 @@ class UltraReportDetector {
       }
     }
     
-    // IDENTIFYING TERMS (30% wagi)
+    // IDENTIFYING TERMS (30% wagi) - FIX: używaj regex zamiast includes()
     if (typeConfig.identifying) {
-      const identifyingFound = typeConfig.identifying.filter(term => 
-        headerText.includes(term) || nameText.includes(term)
-      );
+      const identifyingFound = typeConfig.identifying.filter(term => {
+        // Użyj regex dla wzorców z gwiazdkami, inaczej includes()
+        if (term.includes('*') || term.includes('+') || term.includes('?')) {
+          const regex = new RegExp(term, 'i');
+          return regex.test(headerText) || regex.test(nameText);
+        }
+        return headerText.includes(term) || nameText.includes(term);
+      });
       score.identifying = (identifyingFound.length / typeConfig.identifying.length) * 0.3;
     }
     
@@ -440,33 +445,41 @@ class UltraReportDetector {
   // WALIDACJA RAPORTÓW
   validateReports(reports) {
     this.logger.log('📊 Validating detected reports...', 'INFO');
-    
+
     const validReports = reports.filter(report => {
       if (report.totalRows < 2) {
         this.logger.log(`❌ Report "${report.sheetName}" rejected: No data rows`, 'WARNING');
         return false;
       }
-      
+
       if (report.totalColumns < 3) {
         this.logger.log(`❌ Report "${report.sheetName}" rejected: Too few columns`, 'WARNING');
         return false;
       }
-      
-      if (report.confidence < 0.5) {
+
+      // FIX: Obniżony próg walidacji z 0.5 do 0.35 - zgodnie z detectReportType
+      if (report.confidence < 0.35) {
         this.logger.log(`❌ Report "${report.sheetName}" rejected: Low confidence (${(report.confidence * 100).toFixed(1)}%)`, 'WARNING');
         return false;
       }
-      
+
       if (report.dataQuality.score < 0.3) {
         this.logger.log(`❌ Report "${report.sheetName}" rejected: Poor data quality (${report.dataQuality.score.toFixed(2)})`, 'WARNING');
         return false;
       }
-      
+
       this.logger.log(`✅ Report "${report.sheetName}" validated successfully`, 'SUCCESS');
       return true;
     });
-    
+
     this.logger.log(`📊 Validation complete: ${validReports.length}/${reports.length} reports passed`, validReports.length > 0 ? 'SUCCESS' : 'WARNING');
     return validReports;
   }
 }
+
+// ====================================
+// KRYTYCZNY FIX: Alias dla kompatybilności
+// ====================================
+// Niektóre części kodu używają "new ReportDetector()" ale klasa nazywa się UltraReportDetector
+// Ten alias naprawia błąd "ReportDetector is not defined"
+const ReportDetector = UltraReportDetector;

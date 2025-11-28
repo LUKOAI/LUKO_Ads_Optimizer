@@ -7,8 +7,24 @@
 // Marża = break-even%, spójna ocena ACOS/ROAS
 
 class SnapshotAnalyzer {
-  constructor(logger) { 
-    this.logger = logger || console; 
+  constructor(logger) {
+    // FIX: Bezpieczna inicjalizacja logger
+    this.logger = this.createSafeLogger(logger);
+  }
+
+  /**
+   * FIX: Tworzy bezpieczny logger który ZAWSZE działa
+   */
+  createSafeLogger(logger) {
+    if (logger && typeof logger.log === 'function') {
+      return logger;
+    }
+    return {
+      log: function(message, level) {
+        const timestamp = new Date().toLocaleTimeString('pl-PL');
+        console.log(`${timestamp} [${level || 'INFO'}] ${message}`);
+      }
+    };
   }
 
   generateSnapshot() {
@@ -16,14 +32,21 @@ class SnapshotAnalyzer {
       this.logger.log('🚀 STARTING SNAPSHOT ANALYSIS - LUKO V6.0', 'INFO');
 
       const ss = SpreadsheetApp.getActiveSpreadsheet();
-      const primarySheet = ss.getSheetByName('tu wklejasz raport z amazon');
-      
+      // FIX V6.2: Używaj helper function dla kompatybilności wstecznej
+      // Próbuje: Sponsored_Products_Search_term → tu wklejasz raport z amazon
+      const primarySheet = typeof getAmazonReportSheet === 'function'
+        ? getAmazonReportSheet()
+        : ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT) ||
+          ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT_OLD) ||
+          ss.getSheetByName('tu wklejasz raport z amazon');
+      const sheetName = primarySheet ? primarySheet.getName() : null;
+
       if (!primarySheet || primarySheet.getLastRow() < 2) {
-        throw new Error('Brak danych w arkuszu "tu wklejasz raport z amazon"');
+        throw new Error('Brak danych w arkuszu "Sponsored_Products_Search_term" (lub "tu wklejasz raport z amazon")');
       }
 
       const calc = new MetricsCalculator(this.logger);
-      const metrics = calc.calculateMetrics(null, 'tu wklejasz raport z amazon');
+      const metrics = calc.calculateMetrics(null, sheetName);
 
       this.logger.log(`✅ Metrics calculated - ACOS: ${metrics.totals.acos.toFixed(1)}%`, 'SUCCESS');
       this.generateReport(metrics);
