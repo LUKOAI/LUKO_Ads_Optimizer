@@ -146,12 +146,10 @@ class LukoLogger {
 // FUNKCJA DIAGNOSTYCZNA - dodaj na końcu pliku 07-Logger.gs
 function debugDataParsing() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  // FIX V6.2: Próbuj nową nazwę, potem starą
-  const sheet = ss.getSheetByName('Sponsored_Products_Search_term') ||
-                ss.getSheetByName('tu wklejasz raport z amazon');
-
+  const sheet = ss.getSheetByName('tu wklejasz raport z amazon');
+  
   if (!sheet) {
-    SpreadsheetApp.getUi().alert('Brak arkusza z danymi! Szukano: Sponsored_Products_Search_term lub "tu wklejasz raport z amazon"');
+    SpreadsheetApp.getUi().alert('Brak arkusza z danymi!');
     return;
   }
   

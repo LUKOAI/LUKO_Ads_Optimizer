@@ -40,9 +40,8 @@ function onOpen() {
       .addSeparator()
       .addItem('⏸️ Pauza targetów bez sprzedaży', 'pauseZeroSalesTargets')
       .addItem('📈 Zmień stawki', 'showBidAdjustmentDialog')
-      // TYMCZASOWO UKRYTE - w budowie:
-      // .addItem('➖ Dodaj negatywy', 'addNegativeKeywords')
-      // .addItem('➕ Przenieś do pozytywnych', 'moveToPositiveKeywords')
+      .addItem('➖ Dodaj negatywy', 'addNegativeKeywords')
+      .addItem('➕ Przenieś do pozytywnych', 'moveToPositiveKeywords')
       .addItem('💰 Zmień budżety kampanii', 'adjustCampaignBudgets')
       .addSeparator()
       .addItem('✅ Waliduj przed eksportem', 'validateBulkData')
