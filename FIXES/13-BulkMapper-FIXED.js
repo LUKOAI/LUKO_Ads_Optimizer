@@ -244,7 +244,7 @@ class BulkMapper {
             <div class="subtitle">Wybierz które targety przenieść do BULK_Builder</div>
 
             <div class="info-box">
-              <strong>Znaleziono: ${totalRows} wierszy w BULK_Source</strong>
+              <strong>Znaleziono: ${totalRows} wierszy w ${sourceSheet.getName()}</strong>
               Break-Even ACOS: ${breakEven}%<br>
               Niski ACOS: ≤${lowAcos}% | Wysoki ACOS: ≥${highAcos}%
             </div>
@@ -256,7 +256,7 @@ class BulkMapper {
                 <div class="checkbox-label">
                   <strong>📦 Pobierz wszystkie wiersze (ZALECANE)</strong>
                   <div class="description">
-                    Kopiuje całą zawartość BULK_Source do BULK_Builder bez filtrowania
+                    Kopiuje całą zawartość ${sourceSheet.getName()} do BULK_Builder bez filtrowania
                   </div>
                 </div>
               </div>
