@@ -362,6 +362,13 @@ class BulkMapper {
             }
 
             function startMapping() {
+              console.log('startMapping() wywołane');
+
+              // Pokaż że przycisk działa
+              const btn = document.querySelector('.btn-primary');
+              btn.textContent = '⏳ Mapowanie...';
+              btn.disabled = true;
+
               const fetchAll = document.getElementById('fetchAll').checked;
 
               const filters = {
@@ -372,13 +379,19 @@ class BulkMapper {
                 noSales: document.getElementById('noSales').checked
               };
 
+              console.log('Filtry:', JSON.stringify(filters));
+
               // Wywołaj funkcję Apps Script
               google.script.run
-                .withSuccessHandler(() => {
+                .withSuccessHandler(function(result) {
+                  console.log('SUCCESS:', result);
                   google.script.host.close();
                 })
-                .withFailureHandler(error => {
-                  alert('❌ Błąd: ' + error);
+                .withFailureHandler(function(error) {
+                  console.error('FAILURE:', error);
+                  alert('❌ Błąd: ' + error.message || error);
+                  btn.textContent = '🚀 Rozpocznij mapowanie';
+                  btn.disabled = false;
                 })
                 .runMappingWithFilters(filters);
             }
