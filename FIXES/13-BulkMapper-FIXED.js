@@ -751,12 +751,11 @@ class BulkMapper {
         .setNumberFormat('0.00');
     }
 
-    // V6.4: ACOS - zostawiamy jak jest z Amazon (nie formatujemy jako %)
-    // Amazon podaje ACOS różnie: czasem jako 0.25 (ułamek), czasem jako 25 (procent)
-    // Format 0.00% mnożyłby przez 100, co jest błędem gdy wartość już jest procentem
+    // V6.4: ACOS - format 0.00"%" dodaje tylko znak % BEZ mnożenia przez 100
+    // Amazon podaje ACOS jako procent (np. 25.5 = 25.5%)
     if (columns.acos >= 0) {
       sheet.getRange(2, columns.acos + 1, lastRow - 1, 1)
-        .setNumberFormat('0.00');
+        .setNumberFormat('0.00"%"');
     }
 
     // ROAS - 0.00
@@ -765,17 +764,17 @@ class BulkMapper {
         .setNumberFormat('0.00');
     }
 
-    // V6.4: CTR - zostawiamy jak jest z Amazon (nie formatujemy jako %)
-    // Amazon podaje CTR jako procent (np. 6.30 = 6.30%)
+    // V6.4: CTR - format 0.00"%" dodaje tylko znak % BEZ mnożenia przez 100
+    // Amazon podaje CTR jako procent (np. 6.30 → wyświetli się jako 6.30%)
     if (columns.ctr >= 0) {
       sheet.getRange(2, columns.ctr + 1, lastRow - 1, 1)
-        .setNumberFormat('0.00');
+        .setNumberFormat('0.00"%"');
     }
 
-    // V6.4: Conversion Rate - zostawiamy jak jest z Amazon (nie formatujemy jako %)
+    // V6.4: Conversion Rate - format 0.00"%" dodaje tylko znak % BEZ mnożenia
     if (columns.conversionRate >= 0) {
       sheet.getRange(2, columns.conversionRate + 1, lastRow - 1, 1)
-        .setNumberFormat('0.00');
+        .setNumberFormat('0.00"%"');
     }
   }
 }
