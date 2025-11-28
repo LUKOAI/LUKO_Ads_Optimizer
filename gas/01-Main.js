@@ -5,14 +5,116 @@
 // Author: Łukasz Koronczok, NetAnaliza
 // ====================================
 const LUKO_CONFIG = {
-  VERSION: '6.0',
+  VERSION: '6.2',
   SHEET_PREFIX: 'LUKO_',
   BREAK_EVEN_ACOS: 25,
   SHEETS: {
     TEXTUAL_REPORT: 'LUKO_Textual_Report',
     FULL_ANALYSIS: 'LUKO_Full_Analysis',
     SNAPSHOT: 'LUKO_Snapshot',
-    DEBUG: 'LUKO_Debug_Log'
+    DEBUG: 'LUKO_Debug_Log',
+    // V6.2: NOWE NAZWY ARKUSZY - zgodne z Amazon
+    AMAZON_REPORT: 'Sponsored_Products_Search_term',
+    BULK_SOURCE: 'SP_Bulk_Report',
+    // Stare nazwy dla kompatybilnosci wstecznej
+    AMAZON_REPORT_OLD: 'tu wklejasz raport z amazon',
+    BULK_SOURCE_OLD: 'BULK_Source',
+    // Pozostale arkusze BULK
+    BULK_BUILDER: 'BULK_Builder',
+    BULK_EXPORT: 'BULK_Export',
+    BULK_CHANGES_LOG: 'BULK_Changes_Log'
+  }
+};
+
+// ===== V6.2: HELPER FUNCTIONS - Pobieranie arkuszy z kompatybilnoscia wsteczna =====
+
+/**
+ * Pobiera arkusz Amazon Report - sprawdza nowa i stara nazwe
+ * @returns {Sheet|null}
+ */
+function getAmazonReportSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT);
+  if (sheet) return sheet;
+  return ss.getSheetByName(LUKO_CONFIG.SHEETS.AMAZON_REPORT_OLD);
+}
+
+/**
+ * Pobiera arkusz BULK Source - sprawdza nowa i stara nazwe
+ * @returns {Sheet|null}
+ */
+function getBulkSourceSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE);
+  if (sheet) return sheet;
+  return ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD);
+}
+
+/**
+ * Tworzy arkusz BULK Source z nowa nazwa (lub zwraca istniejacy)
+ * @returns {Sheet}
+ */
+function getOrCreateBulkSourceSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = getBulkSourceSheet();
+  if (sheet) {
+    if (sheet.getName() === LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD) {
+      sheet.setName(LUKO_CONFIG.SHEETS.BULK_SOURCE);
+    }
+    return sheet;
+  }
+  return ss.insertSheet(LUKO_CONFIG.SHEETS.BULK_SOURCE);
+}
+
+// ===== UNIWERSALNY PARSER LICZB =====
+const universalParser = {
+  parseNumber: function(value) {
+    if (value === null || value === undefined || value === '') return 0;
+    if (typeof value === 'number') return value;
+
+    let str = String(value).trim();
+
+    // Usun symbole walut
+    const currencySymbols = ['EUR', '$', 'USD', 'GBP', 'PLN', 'SEK', 'zl', 'kr'];
+    currencySymbols.forEach(symbol => {
+      str = str.replace(new RegExp(symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), '');
+    });
+
+    // Zapamietaj czy to procent
+    const isPercent = str.includes('%');
+    str = str.replace(/%/g, '').trim();
+
+    // Okresl format liczby
+    const hasComma = str.includes(',');
+    const hasDot = str.includes('.');
+
+    if (hasComma && hasDot) {
+      const lastComma = str.lastIndexOf(',');
+      const lastDot = str.lastIndexOf('.');
+      if (lastComma > lastDot) {
+        str = str.replace(/\./g, '').replace(',', '.');
+      } else {
+        str = str.replace(/,/g, '');
+      }
+    } else if (hasComma && !hasDot) {
+      const parts = str.split(',');
+      if (parts.length === 2 && parts[1].length <= 2) {
+        str = str.replace(',', '.');
+      } else {
+        str = str.replace(/,/g, '');
+      }
+    } else {
+      str = str.replace(/\s/g, '');
+    }
+
+    let result = parseFloat(str);
+    if (isNaN(result)) return 0;
+
+    if (isPercent && result > 1) {
+      result = result / 100;
+    }
+
+    return result;
   }
 };
 

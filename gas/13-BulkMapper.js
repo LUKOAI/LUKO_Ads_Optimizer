@@ -38,17 +38,36 @@ class BulkMapper {
    * Wywołuje globalną funkcję showMappingDialog()
    */
   showMappingDialog() {
-    // Używamy this.ss które już mamy
+    // Uzywamy this.ss ktore juz mamy
     const ui = SpreadsheetApp.getUi();
-    // V6.2: Używaj helper function dla kompatybilności wstecznej
-    const sourceSheet = typeof getBulkSourceSheet === 'function'
-      ? getBulkSourceSheet()
-      : this.ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE) || this.ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD);
+    // V6.3: Ulepszone wyszukiwanie arkusza zrodlowego z fallback do hardcoded nazw
+    let sourceSheet = null;
+
+    // 1. Probuj helper function
+    if (typeof getBulkSourceSheet === 'function') {
+      sourceSheet = getBulkSourceSheet();
+    }
+
+    // 2. Probuj LUKO_CONFIG jesli helper nie znalazl
+    if (!sourceSheet && typeof LUKO_CONFIG !== 'undefined' && LUKO_CONFIG.SHEETS) {
+      if (LUKO_CONFIG.SHEETS.BULK_SOURCE) {
+        sourceSheet = this.ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE);
+      }
+      if (!sourceSheet && LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD) {
+        sourceSheet = this.ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD);
+      }
+    }
+
+    // 3. Fallback do hardcoded nazw (jesli konfiguracja nie istnieje)
+    if (!sourceSheet) {
+      sourceSheet = this.ss.getSheetByName('SP_Bulk_Report') ||
+                    this.ss.getSheetByName('BULK_Source');
+    }
 
     if (!sourceSheet) {
       ui.alert(
         '❌ Brak danych',
-        `Najpierw wgraj raport Amazon do arkusza "${LUKO_CONFIG.SHEETS.BULK_SOURCE}"`,
+        'Najpierw wgraj raport Amazon do arkusza "SP_Bulk_Report" lub "BULK_Source"',
         ui.ButtonSet.OK
       );
       return;
@@ -419,12 +438,31 @@ class BulkMapper {
       this.logger.log('=== BULK MAPPER START ===', 'INFO');
       this.logger.log(`Filtry: ${JSON.stringify(filters)}`, 'INFO');
 
-      // V6.2: Pobierz arkusz źródłowy z kompatybilnością wsteczną
-      const bulkSource = typeof getBulkSourceSheet === 'function'
-        ? getBulkSourceSheet()
-        : this.ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE) || this.ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD);
+      // V6.3: Ulepszone wyszukiwanie arkusza zrodlowego z fallback do hardcoded nazw
+      let bulkSource = null;
+
+      // 1. Probuj helper function
+      if (typeof getBulkSourceSheet === 'function') {
+        bulkSource = getBulkSourceSheet();
+      }
+
+      // 2. Probuj LUKO_CONFIG jesli helper nie znalazl
+      if (!bulkSource && typeof LUKO_CONFIG !== 'undefined' && LUKO_CONFIG.SHEETS) {
+        if (LUKO_CONFIG.SHEETS.BULK_SOURCE) {
+          bulkSource = this.ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE);
+        }
+        if (!bulkSource && LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD) {
+          bulkSource = this.ss.getSheetByName(LUKO_CONFIG.SHEETS.BULK_SOURCE_OLD);
+        }
+      }
+
+      // 3. Fallback do hardcoded nazw
+      if (!bulkSource) {
+        bulkSource = this.ss.getSheetByName('SP_Bulk_Report') ||
+                     this.ss.getSheetByName('BULK_Source');
+      }
       if (!bulkSource || bulkSource.getLastRow() < 2) {
-        throw new Error(`Brak danych w ${LUKO_CONFIG.SHEETS.BULK_SOURCE} - wgraj raport Amazon`);
+        throw new Error('Brak danych w SP_Bulk_Report lub BULK_Source - wgraj raport Amazon');
       }
 
       const totalRows = bulkSource.getLastRow();
