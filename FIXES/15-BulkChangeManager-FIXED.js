@@ -2,16 +2,22 @@
  * LUKO Ads Optimizer - Bulk Change Manager
  * Moduł do aplikowania zmian masowych w kampaniach Amazon PPC
  *
- * WERSJA: 3.4 - PEŁNA FUNKCJONALNOŚĆ + FIXES
+ * WERSJA: 3.6 - NAPRAWIONE PAUZOWANIE
+ *
+ * NAPRAWIONE W V3.6:
+ * - TRYB 1 (Filtr): Maszyna SAMA szuka targetów BEZ SPRZEDAŻY (Orders=0)
+ *   według kryteriów clicks/spend i je pauzuje
+ * - TRYB 2 (Ręczne): Użytkownik zaznacza wiersze PRZED otwarciem dialogu
+ *   i te dokładnie zostają spauzowane (bez sprawdzania kryteriów)
+ * - Ostrzeżenie gdy wśród ręcznie zaznaczonych są targety Z zamówieniami
+ * - Checkbox Apply ustawiany na FALSE po spauzowaniu
  *
  * NAPRAWIONE W V3.4:
  * - Entity detection: akceptuje różne formaty (keyword, targeting, etc.)
  * - Bid change: wartość dodatnia/ujemna określa kierunek
  * - ChangesDONE: ZAWSZE ustawia 'DONE' (dla eksportu)
- * - Dialog uproszczony: 2 kroki zamiast 4 pól
  *
  * NAPRAWIONE W V3.0:
- * - Opcja "Zmień zaznaczone (Apply=TRUE)" vs "Zmień wszystkie"
  * - Dialog bid pokazuje wartości ACOS (break-even, low, high)
  * - Podświetlenie zmienionej kolumny Bid (jak przy pause)
  * - Weryfikacja API przez UserProperties
@@ -637,19 +643,61 @@ class BulkChangeManager {
   }
 
   /**
-   * STREFA 2: Dialog do manualnego pauzowania targetów
+   * STREFA 2: Dialog do pauzowania targetów
+   * V3.6: Dwa tryby - automatyczny filtr LUB ręczne zaznaczenie
    */
   showPauseDialog() {
-    const html = HtmlService.createHtmlOutput(this.getPauseDialogHtml())
-      .setWidth(500)
-      .setHeight(400);
-    SpreadsheetApp.getUi().showModalDialog(html, '⏸️ Pauzuj Wybrane Targety');
+    // Sprawdź ile wierszy jest już zaznaczonych PRZED otwarciem dialogu
+    const preSelectedInfo = this.countPreSelectedRows();
+    const html = HtmlService.createHtmlOutput(this.getPauseDialogHtml(preSelectedInfo))
+      .setWidth(550)
+      .setHeight(550);
+    SpreadsheetApp.getUi().showModalDialog(html, '⏸️ Pauzuj Targety Bez Sprzedaży');
   }
 
   /**
-   * HTML dla dialogu pauzowania
+   * V3.6: Policz wiersze już zaznaczone przed otwarciem dialogu
    */
-  getPauseDialogHtml() {
+  countPreSelectedRows() {
+    if (!this.builderSheet) {
+      return { count: 0, withOrders: 0, withoutOrders: 0 };
+    }
+
+    const data = this.builderSheet.getDataRange().getValues();
+    const headers = data[0];
+    const columns = this.findColumnIndices(headers);
+
+    let count = 0;
+    let withOrders = 0;
+    let withoutOrders = 0;
+
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+      const applyValue = row[columns.Apply];
+      const isApplyChecked = (applyValue === true || applyValue === 'TRUE' ||
+                              applyValue === '☑' || applyValue === 1);
+
+      if (isApplyChecked) {
+        count++;
+        const orders = this.parseNumber(row[columns.Orders]);
+        if (orders > 0) {
+          withOrders++;
+        } else {
+          withoutOrders++;
+        }
+      }
+    }
+
+    return { count, withOrders, withoutOrders };
+  }
+
+  /**
+   * HTML dla dialogu pauzowania - V3.6: Dwa tryby działania
+   */
+  getPauseDialogHtml(preSelectedInfo) {
+    const hasPreSelected = preSelectedInfo.count > 0;
+    const hasOrdersWarning = preSelectedInfo.withOrders > 0;
+
     return `
       <!DOCTYPE html>
       <html>
@@ -665,34 +713,35 @@ class BulkChangeManager {
             .container {
               background: white;
               border-radius: 15px;
-              padding: 30px;
+              padding: 25px;
               box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             }
-            h2 {
-              color: #333;
-              margin-top: 0;
-              text-align: center;
+            h2 { color: #333; margin-top: 0; text-align: center; font-size: 20px; }
+            .mode-box {
+              padding: 15px;
+              margin: 15px 0;
+              border-radius: 10px;
+              border: 2px solid #ddd;
             }
-            .info-box {
+            .mode-box.active { border-color: #f5576c; background: #fff5f7; }
+            .mode-box.inactive { opacity: 0.6; }
+            .mode-box h3 { margin: 0 0 10px 0; font-size: 16px; }
+            .mode-box p { margin: 5px 0; font-size: 13px; color: #666; }
+            .warning-box {
               background: #fff3cd;
               border-left: 4px solid #ffc107;
-              padding: 15px;
-              margin: 20px 0;
+              padding: 12px;
+              margin: 10px 0;
               border-radius: 5px;
             }
-            .info-box p {
-              margin: 5px 0;
-              color: #856404;
+            .warning-box.danger {
+              background: #f8d7da;
+              border-color: #dc3545;
             }
-            .form-group {
-              margin: 20px 0;
-            }
-            label {
-              display: block;
-              font-weight: 600;
-              margin-bottom: 8px;
-              color: #333;
-            }
+            .warning-box p { margin: 3px 0; color: #856404; font-size: 13px; }
+            .warning-box.danger p { color: #721c24; }
+            .form-group { margin: 15px 0; }
+            label { display: block; font-weight: 600; margin-bottom: 5px; color: #333; font-size: 14px; }
             input[type="number"] {
               width: 100%;
               padding: 10px;
@@ -701,15 +750,8 @@ class BulkChangeManager {
               font-size: 14px;
               box-sizing: border-box;
             }
-            input[type="number"]:focus {
-              outline: none;
-              border-color: #f5576c;
-            }
-            .button-group {
-              display: flex;
-              gap: 10px;
-              margin-top: 25px;
-            }
+            input[type="number"]:focus { outline: none; border-color: #f5576c; }
+            .button-group { display: flex; gap: 10px; margin-top: 20px; }
             button {
               flex: 1;
               padding: 12px;
@@ -724,50 +766,96 @@ class BulkChangeManager {
               background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
               color: white;
             }
-            .btn-primary:hover {
-              transform: translateY(-2px);
-              box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
-            }
-            .btn-secondary {
-              background: #6c757d;
+            .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4); }
+            .btn-secondary { background: #6c757d; color: white; }
+            .btn-secondary:hover { background: #5a6268; }
+            .count-badge {
+              display: inline-block;
+              background: #dc3545;
               color: white;
+              padding: 2px 8px;
+              border-radius: 10px;
+              font-size: 12px;
+              font-weight: bold;
             }
-            .btn-secondary:hover {
-              background: #5a6268;
-            }
+            .count-badge.success { background: #28a745; }
           </style>
         </head>
         <body>
           <div class="container">
-            <h2>⏸️ Pauzuj Wybrane Targety</h2>
+            <h2>⏸️ Pauzuj Targety Bez Sprzedaży</h2>
 
-            <div class="info-box">
-              <p><strong>ℹ️ Instrukcja:</strong></p>
-              <p>1. Zaznacz wiersze w arkuszu BULK_Builder</p>
-              <p>2. Ustaw progi (opcjonalnie)</p>
-              <p>3. Kliknij "Pauzuj Wybrane"</p>
-            </div>
+            ${hasPreSelected ? `
+            <!-- TRYB 2: Ręczne zaznaczenie (przed otwarciem dialogu) -->
+            <div class="mode-box active">
+              <h3>✋ TRYB: Ręczne Zaznaczenie</h3>
+              <p>Zaznaczono <span class="count-badge${hasOrdersWarning ? '' : ' success'}">${preSelectedInfo.count}</span> wierszy przed otwarciem okienka.</p>
+              <p>Te i tylko te wiersze zostaną spauzowane.</p>
 
-            <div class="form-group">
-              <label>Minimalnie kliknięć (zostaw 0 aby pominąć):</label>
-              <input type="number" id="minClicks" value="0" min="0">
-            </div>
-
-            <div class="form-group">
-              <label>Minimalnie wydanych € (zostaw 0 aby pominąć):</label>
-              <input type="number" id="minSpend" value="0" min="0" step="0.01">
+              ${hasOrdersWarning ? `
+              <div class="warning-box danger">
+                <p><strong>⚠️ UWAGA!</strong></p>
+                <p>Wśród zaznaczonych jest <strong>${preSelectedInfo.withOrders}</strong> targetów z zamówieniami (mają sprzedaż)!</p>
+                <p>Czy na pewno chcesz je spauzować?</p>
+              </div>
+              ` : `
+              <div class="warning-box">
+                <p>✓ Wszystkie ${preSelectedInfo.count} targety są bez sprzedaży (Orders = 0)</p>
+              </div>
+              `}
             </div>
 
             <div class="button-group">
               <button class="btn-secondary" onclick="google.script.host.close()">Anuluj</button>
-              <button class="btn-primary" onclick="pauseSelected()">⏸️ Pauzuj Wybrane</button>
+              <button class="btn-primary" onclick="pausePreSelected()">
+                ⏸️ Pauzuj ${preSelectedInfo.count} Zaznaczonych
+              </button>
             </div>
+
+            ` : `
+            <!-- TRYB 1: Automatyczny filtr (brak wcześniejszego zaznaczenia) -->
+            <div class="mode-box active">
+              <h3>🔍 TRYB: Automatyczny Filtr</h3>
+              <p>Znajdę targety <strong>BEZ SPRZEDAŻY</strong> (Orders = 0) które spełniają poniższe kryteria:</p>
+
+              <div class="form-group">
+                <label>Minimalna liczba kliknięć:</label>
+                <input type="number" id="minClicks" value="10" min="0">
+              </div>
+
+              <div class="form-group">
+                <label>Minimalna kwota wydatków (€):</label>
+                <input type="number" id="minSpend" value="5" min="0" step="0.01">
+              </div>
+
+              <div class="warning-box">
+                <p><strong>ℹ️ Jak to działa:</strong></p>
+                <p>1. Znajdę targety z Clicks ≥ X i Spend ≥ Y i Orders = 0</p>
+                <p>2. Zaznaczę je automatycznie (Apply = TRUE)</p>
+                <p>3. Spauzuję i oznaczę jako DONE</p>
+              </div>
+            </div>
+
+            <div class="button-group">
+              <button class="btn-secondary" onclick="google.script.host.close()">Anuluj</button>
+              <button class="btn-primary" onclick="pauseByFilter()">
+                🔍 Znajdź i Pauzuj
+              </button>
+            </div>
+            `}
           </div>
 
           <script>
-            function pauseSelected() {
+            // TRYB 1: Automatyczny filtr - znajdź targety bez sprzedaży według kryteriów
+            function pauseByFilter() {
               const minClicks = parseInt(document.getElementById('minClicks').value) || 0;
               const minSpend = parseFloat(document.getElementById('minSpend').value) || 0;
+
+              if (minClicks === 0 && minSpend === 0) {
+                if (!confirm('Ustawiono oba progi na 0. To spauzuje WSZYSTKIE targety bez sprzedaży. Kontynuować?')) {
+                  return;
+                }
+              }
 
               google.script.run
                 .withSuccessHandler(result => {
@@ -775,7 +863,24 @@ class BulkChangeManager {
                   google.script.host.close();
                 })
                 .withFailureHandler(err => alert('Błąd: ' + err))
-                .pauseSelectedTargetsManual(minClicks, minSpend);
+                .pauseZeroSalesByFilter(minClicks, minSpend);
+            }
+
+            // TRYB 2: Ręczne zaznaczenie - pauzuj tylko te zaznaczone przed otwarciem
+            function pausePreSelected() {
+              ${hasOrdersWarning ? `
+              if (!confirm('UWAGA! Wśród zaznaczonych są ${preSelectedInfo.withOrders} targety z zamówieniami!\\n\\nCzy NA PEWNO chcesz je spauzować?')) {
+                return;
+              }
+              ` : ''}
+
+              google.script.run
+                .withSuccessHandler(result => {
+                  alert(result);
+                  google.script.host.close();
+                })
+                .withFailureHandler(err => alert('Błąd: ' + err))
+                .pausePreSelectedTargets();
             }
           </script>
         </body>
@@ -784,11 +889,10 @@ class BulkChangeManager {
   }
 
   /**
-   * Pauzuj wybrane targety (manual) - FIXED V3.3: używa Apply=TRUE zamiast kursora
-   * Pauzuje wiersze z Apply=TRUE - obsługuje Keyword, Product Targeting, Campaign, Ad Group
-   * V3.3 FIX: Poprawiona detekcja entity - akceptuje różne formaty nazw
+   * V3.6 TRYB 1: Pauzuj targety BEZ SPRZEDAŻY według kryteriów (automatyczny filtr)
+   * Maszyna SAMA zaznacza i pauzuje targety gdzie Orders = 0
    */
-  pauseSelectedTargetsManual(minClicks, minSpend) {
+  pauseZeroSalesByFilter(minClicks, minSpend) {
     if (!this.builderSheet) {
       return '⚠️ Arkusz BULK_Builder nie istnieje!';
     }
@@ -797,68 +901,37 @@ class BulkChangeManager {
     const headers = data[0];
     const columns = this.findColumnIndices(headers);
 
-    // FIX V3.5: Sprawdź czy kolumna Apply istnieje
-    if (columns.Apply === undefined) {
-      return '⚠️ Nie znaleziono kolumny "Apply" w arkuszu BULK_Builder!\n\nUpewnij się, że arkusz zawiera kolumnę z nagłówkiem "Apply" lub "Zastosuj".';
-    }
-
+    let foundCount = 0;
     let pausedCount = 0;
-    let skippedThreshold = 0;
-    let skippedNoApply = 0;
     const updates = [];
 
-    // FIXED V3.5: Iteruj przez WSZYSTKIE wiersze i sprawdź Apply=TRUE
+    // Szukamy targetów BEZ SPRZEDAŻY (Orders = 0) spełniających kryteria
     for (let i = 1; i < data.length; i++) {
       const row = data[i];
 
-      // FIXED V3.5: Sprawdź czy Apply jest zaznaczone (TRUE/checkbox/1)
-      const applyValue = row[columns.Apply];
-      const isApplyChecked = (applyValue === true || applyValue === 'TRUE' ||
-                              applyValue === '☑' || applyValue === 1 ||
-                              applyValue === '1' || applyValue === 'yes' ||
-                              applyValue === 'Yes' || applyValue === 'YES');
+      // Pomiń puste wiersze
+      if (!row[0]) continue;
 
-      if (!isApplyChecked) {
-        skippedNoApply++;
+      // KLUCZOWE: Sprawdź czy target ma sprzedaż
+      const orders = this.parseNumber(row[columns.Orders]);
+      if (orders > 0) {
+        // Ma sprzedaż - NIE pauzujemy!
         continue;
       }
 
-      // FIXED V3.5: Poprawiona detekcja entity - akceptuje WSZYSTKIE typy do pauzowania
-      const entity = (row[columns.Entity] || '').toString().trim().toLowerCase();
+      // Sprawdź kryteria clicks i spend
+      const clicks = this.parseNumber(row[columns.Clicks]);
+      const spend = this.parseNumber(row[columns.Spend]);
 
-      // FIX V3.5: Szeroka lista entity do pauzowania
-      const pausableEntities = [
-        'keyword', 'product targeting', 'targeting', 'campaign', 'ad group', 'adgroup',
-        'negative keyword', 'negative product targeting', 'bid adjustment', 'product ad'
-      ];
-      const isTarget = pausableEntities.some(e => entity.includes(e) || e.includes(entity));
+      if (minClicks > 0 && clicks < minClicks) continue;
+      if (minSpend > 0 && spend < minSpend) continue;
 
-      // FIX V3.5: Jeśli entity jest puste LUB nierozpoznane - PAUZUJ i tak!
-      // Użytkownik zaznaczył Apply, więc chce spauzować ten wiersz
-      if (!isTarget && entity !== '') {
-        // Tylko loguj jako warning, ale NIE pomijaj
-        Logger.log(`⚠️ Nieznany entity: "${entity}" (wiersz ${i+1}) - pauzuję mimo wszystko`);
-      }
-
-      // Sprawdź progi jeśli są ustawione
-      if (minClicks > 0 || minSpend > 0) {
-        const clicks = this.parseNumber(row[columns.Clicks]);
-        const spend = this.parseNumber(row[columns.Spend]);
-
-        if (minClicks > 0 && clicks < minClicks) {
-          skippedThreshold++;
-          continue;
-        }
-        if (minSpend > 0 && spend < minSpend) {
-          skippedThreshold++;
-          continue;
-        }
-      }
+      foundCount++;
 
       // Przygotuj aktualizację
       const updatedRow = [...row];
 
-      // FIXED: Zmień faktyczną kolumnę Amazon "State" na "paused"
+      // Zmień State na paused
       if (columns.State !== undefined) {
         updatedRow[columns.State] = 'paused';
       }
@@ -866,8 +939,8 @@ class BulkChangeManager {
       updatedRow[columns.Status] = 'PAUSED';
       updatedRow[columns.ChangesDONE] = 'DONE';
       updatedRow[columns.Action] = 'PAUSE';
-      updatedRow[columns.Reason] = `Pauzowane (Apply=TRUE)`;
-      updatedRow[columns.Apply] = ''; // Wyczyść checkbox
+      updatedRow[columns.Reason] = `Zero sprzedaży (Clicks: ${clicks}, Spend: ${spend.toFixed(2)}€)`;
+      updatedRow[columns.Apply] = false; // Wyczyść checkbox (FALSE)
 
       updates.push({
         rowIndex: i + 1,
@@ -880,25 +953,80 @@ class BulkChangeManager {
     }
 
     if (updates.length === 0) {
-      let reason = 'ℹ️ Żaden wiersz nie spełnił kryteriów pauzowania\n\n';
-      reason += '📋 Sprawdź:\n';
-      reason += '• Czy zaznaczono checkboxy w kolumnie Apply?\n';
-      reason += `\n📊 Statystyki:\n`;
-      reason += `• Wierszy bez zaznaczenia Apply: ${skippedNoApply}\n`;
-      if (skippedThreshold > 0) {
-        reason += `• Pominięto (progi clicks/spend): ${skippedThreshold}\n`;
-      }
-      return reason;
+      return `ℹ️ Nie znaleziono targetów do spauzowania.\n\nKryteria: Clicks ≥ ${minClicks}, Spend ≥ ${minSpend}€, Orders = 0`;
     }
 
     // Aplikuj zmiany
     this.applyBatchUpdates(updates, columns);
 
-    let result = `✓ Pomyślnie spauzowano ${pausedCount} targetów!`;
-    if (skippedThreshold > 0) {
-      result += `\n⚠️ Pominięto ${skippedThreshold} wierszy (nie spełniły progów clicks/spend)`;
+    return `✓ Spauzowano ${pausedCount} targetów BEZ SPRZEDAŻY!\n\nKryteria: Clicks ≥ ${minClicks}, Spend ≥ ${minSpend}€, Orders = 0`;
+  }
+
+  /**
+   * V3.6 TRYB 2: Pauzuj tylko te targety które były zaznaczone PRZED otwarciem dialogu
+   * Bez sprawdzania kryteriów - użytkownik sam wybrał co chce spauzować
+   */
+  pausePreSelectedTargets() {
+    if (!this.builderSheet) {
+      return '⚠️ Arkusz BULK_Builder nie istnieje!';
     }
-    return result;
+
+    const data = this.builderSheet.getDataRange().getValues();
+    const headers = data[0];
+    const columns = this.findColumnIndices(headers);
+
+    let pausedCount = 0;
+    const updates = [];
+
+    // Pauzuj TYLKO te które mają Apply = TRUE (zaznaczone przez użytkownika)
+    for (let i = 1; i < data.length; i++) {
+      const row = data[i];
+
+      const applyValue = row[columns.Apply];
+      const isApplyChecked = (applyValue === true || applyValue === 'TRUE' ||
+                              applyValue === '☑' || applyValue === 1);
+
+      if (!isApplyChecked) continue;
+
+      // Przygotuj aktualizację
+      const updatedRow = [...row];
+
+      if (columns.State !== undefined) {
+        updatedRow[columns.State] = 'paused';
+      }
+
+      updatedRow[columns.Status] = 'PAUSED';
+      updatedRow[columns.ChangesDONE] = 'DONE';
+      updatedRow[columns.Action] = 'PAUSE';
+      updatedRow[columns.Reason] = 'Ręczne zaznaczenie';
+      updatedRow[columns.Apply] = false; // Wyczyść checkbox (FALSE)
+
+      updates.push({
+        rowIndex: i + 1,
+        values: [updatedRow],
+        color: this.colors.PAUSED,
+        stateCol: columns.State
+      });
+
+      pausedCount++;
+    }
+
+    if (updates.length === 0) {
+      return 'ℹ️ Nie znaleziono zaznaczonych wierszy do spauzowania.';
+    }
+
+    // Aplikuj zmiany
+    this.applyBatchUpdates(updates, columns);
+
+    return `✓ Spauzowano ${pausedCount} ręcznie zaznaczonych targetów!`;
+  }
+
+  /**
+   * LEGACY: Stara funkcja dla kompatybilności wstecznej
+   */
+  pauseSelectedTargetsManual(minClicks, minSpend) {
+    // Przekieruj do nowej funkcji z filtrem
+    return this.pauseZeroSalesByFilter(minClicks, minSpend);
   }
 
   /**
@@ -2076,6 +2204,22 @@ function showPauseDialog() {
 function pauseSelectedTargetsManual(minClicks, minSpend) {
   const manager = new BulkChangeManager();
   return manager.pauseSelectedTargetsManual(minClicks, minSpend);
+}
+
+/**
+ * V3.6: Pauzuj targety BEZ SPRZEDAŻY według filtra (Tryb 1)
+ */
+function pauseZeroSalesByFilter(minClicks, minSpend) {
+  const manager = new BulkChangeManager();
+  return manager.pauseZeroSalesByFilter(minClicks, minSpend);
+}
+
+/**
+ * V3.6: Pauzuj ręcznie zaznaczone targety (Tryb 2)
+ */
+function pausePreSelectedTargets() {
+  const manager = new BulkChangeManager();
+  return manager.pausePreSelectedTargets();
 }
 
 function showBidChangeDialog() {
