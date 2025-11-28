@@ -1,5 +1,5 @@
 // ===== 13-BULKMAPPER.JS - FILTROWANIE I KOPIOWANIE BULK DATA =====
-// Wersja: 1.2 - FIXED: Dodana metoda showMappingDialog() do klasy
+// Wersja: 1.3 - V6.4: Dodana kolumna ShareOfSales (udział w obrocie) przed Apply
 // Zadanie: Kopiowanie wierszy z BULK_Source do BULK_Builder z filtrowaniem
 // Autor: LUKO AI
 // Data: 2024
@@ -530,14 +530,16 @@ class BulkMapper {
 
   /**
    * Tworzenie rozszerzonych nagłówków (oryginalne + pomocnicze)
+   * V6.4: Dodana kolumna ShareOfSales (udział w obrocie) po ROAS, przed Apply
    */
   createExtendedHeaders(originalHeaders) {
     return [
       ...originalHeaders,
+      'ShareOfSales',      // V6.4: NOWE - udział w całkowitej sprzedaży (% total)
       'Apply',
       'Action',
       'Reason',
-      'PercentValue',
+      'PercentValue',      // V6.4: Teraz = wartość zmiany (np. "-30%", "+25%")
       'Confidence',
       'Source',
       'Status',
@@ -547,15 +549,17 @@ class BulkMapper {
 
   /**
    * Dodanie kolumn pomocniczych do każdego wiersza
+   * V6.4: Dodana kolumna ShareOfSales przed Apply
    */
   addHelperColumns(rows) {
     return rows.map(row => {
       return [
         ...row,
+        '',                    // ShareOfSales - V6.4: udział w obrocie (wypełni BulkAnalyzer)
         '',                    // Apply - pusta kratka (checkbox będzie dodany)
         '',                    // Action - puste
         '',                    // Reason - puste
-        '',                    // PercentValue - puste
+        '',                    // PercentValue - V6.4: wartość zmiany (np. "-30%")
         '',                    // Confidence - puste
         'BULK Report',         // Source - skąd pochodzą dane
         'Czeka na analizę',    // Status - informacja dla użytkownika

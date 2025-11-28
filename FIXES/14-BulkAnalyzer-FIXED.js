@@ -1,7 +1,12 @@
 // ===== 14-BULKANALYZER.JS - KOMPLEKSOWA ANALIZA TARGETÓW =====
-// Wersja: 3.4 FIXED - Naprawiona auto-selekcja i progi
+// Wersja: 3.5 FIXED - V6.4: ShareOfSales + PercentValue naprawione
 // Autor: LUKO AI
-// Data: 2025-11-27
+// Data: 2025-11-28
+//
+// ZMIANY W V3.5 (2025-11-28):
+// - ShareOfSales = udział w całkowitej sprzedaży (% total) - NOWA KOLUMNA
+// - PercentValue = wartość zmiany stawki (np. "-30%", "+25%")
+// - Naprawiona logika wypełniania obu kolumn
 //
 // ZMIANY W V3.4 (2025-11-27):
 // - Obniżone progi: minClicksForPause=10 (z 30), minSpendForPause=5 (z 10)
@@ -448,13 +453,23 @@ class BulkAnalyzer {
           allData[i][columns.source] = classification.source || 'ANALYZED';
           allData[i][columns.status] = 'Gotowe do przeglądu';
 
-          // V6.3: PercentValue = % total (udział w sprzedaży) zamiast % change
+          // V6.4: ShareOfSales = udział w całkowitej sprzedaży (% total)
           const rowSales = this.parser.parseNumber(row[columns.sales]);
-          if (totalSales > 0 && rowSales > 0) {
-            const percentOfTotal = (rowSales / totalSales * 100).toFixed(2);
-            allData[i][columns.percentValue] = percentOfTotal + '%';
+          if (columns.shareOfSales !== undefined) {
+            if (totalSales > 0 && rowSales > 0) {
+              const percentOfTotal = (rowSales / totalSales * 100).toFixed(2);
+              allData[i][columns.shareOfSales] = percentOfTotal + '%';
+            } else {
+              allData[i][columns.shareOfSales] = '0%';
+            }
+          }
+
+          // V6.4: PercentValue = wartość zmiany (np. "-30%", "+25%")
+          // Pobierz z classification.change (np. '-30', '+25', '-20')
+          if (classification.change) {
+            allData[i][columns.percentValue] = classification.change + '%';
           } else {
-            allData[i][columns.percentValue] = '0%';
+            allData[i][columns.percentValue] = '';
           }
 
           // KLUCZOWE: Automatyczne zaznaczanie
@@ -1126,7 +1141,9 @@ class BulkAnalyzer {
             color = this.colors.PAUSE_NORMAL;
           }
         } else if (action === 'DECREASE_BID') {
-          const change = Math.abs(this.parser.parseNumber(data[i][columns.percentValue]));
+          // V6.4: PercentValue teraz zawiera wartość zmiany (np. "-30%")
+          const percentStr = (data[i][columns.percentValue] || '').toString();
+          const change = Math.abs(this.parser.parseNumber(percentStr.replace('%', '')));
           if (change >= 25) {
             color = this.colors.DECREASE_BID_HIGH;
           } else if (change >= 15) {
@@ -1139,7 +1156,9 @@ class BulkAnalyzer {
           if (reason.includes('BRAK WIDOCZNOŚCI') || reason.includes('Niska widoczność')) {
             color = this.colors.NO_VISIBILITY;
           } else {
-            const change = this.parser.parseNumber(data[i][columns.percentValue]);
+            // V6.4: PercentValue teraz zawiera wartość zmiany (np. "+25%")
+            const percentStr = (data[i][columns.percentValue] || '').toString();
+            const change = Math.abs(this.parser.parseNumber(percentStr.replace('%', '').replace('+', '')));
             if (change >= 20) {
               color = this.colors.INCREASE_BID_HIGH;
             } else if (change >= 15) {
@@ -1315,6 +1334,8 @@ class BulkAnalyzer {
       if (h === 'confidence' || h === '🎯 confidence') columns.confidence = index;
       if (h === 'source' || h === '📊 source') columns.source = index;
       if (h === 'status' || h === '📌 status') columns.status = index;
+      // V6.4: Nowa kolumna ShareOfSales
+      if (h === 'shareofsales' || h === 'share of sales') columns.shareOfSales = index;
     });
 
     return columns;
