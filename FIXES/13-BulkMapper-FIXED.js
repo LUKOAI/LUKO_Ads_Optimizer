@@ -1,5 +1,5 @@
 // ===== 13-BULKMAPPER.JS - FILTROWANIE I KOPIOWANIE BULK DATA =====
-// Wersja: 1.3 - V6.4: Dodana kolumna ShareOfSales (udział w obrocie) przed Apply
+// Wersja: 1.4 - V6.4: ShareOfSales + poprawne formatowanie % (0.021 → 2.10%)
 // Zadanie: Kopiowanie wierszy z BULK_Source do BULK_Builder z filtrowaniem
 // Autor: LUKO AI
 // Data: 2024
@@ -719,8 +719,8 @@ class BulkMapper {
 
   /**
    * Ustawienie formatów numerycznych
-   * V6.4: USUNIĘTO formatowanie % dla ACOS/CTR/ConvRate - Amazon podaje je różnie
-   * Zostawiamy dane tak jak są w raporcie Amazon
+   * V6.4: ACOS/CTR/ConvRate - Amazon podaje jako ułamki dziesiętne
+   * Format 0.00% mnoży przez 100 (0.021 → 2.10%)
    */
   setNumericFormats(sheet, columns) {
     const lastRow = sheet.getLastRow();
