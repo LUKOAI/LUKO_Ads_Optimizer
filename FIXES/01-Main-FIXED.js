@@ -295,7 +295,9 @@ function onOpen() {
         .addItem('⏸️ Pauzuj targety', 'showPauseTargetsDialog')
         .addItem('💰 Zmień stawki', 'showChangeBidsDialog')
         .addItem('📈 Zmień budżety', 'showChangeBudgetsDialog')
-        .addItem('🚫 Dodaj negatywy', 'showAddNegativesDialog'))
+        // V6.3: Tymczasowo ukryte - funkcja w przygotowaniu
+        // .addItem('🚫 Dodaj negatywy', 'showAddNegativesDialog')
+      )
       .addSeparator()
 
       // EKSPORT I WALIDACJA

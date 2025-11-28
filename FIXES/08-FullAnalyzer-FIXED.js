@@ -71,6 +71,10 @@ class FullAnalyzer {
     }
 
     this.createFullAnalysisSheet(sheet, metrics, integratedData);
+
+    // V6.3: Przełącz widok na arkusz Full_Analysis po wygenerowaniu
+    ss.setActiveSheet(sheet);
+
     this.logger.log('✅ Full analysis generated successfully', 'SUCCESS');
   }
 

@@ -610,6 +610,9 @@ class BulkMapper {
       if (h.includes('orders')) columns.orders = index;
       if (h.includes('acos')) columns.acos = index;
       if (h.includes('roas')) columns.roas = index;
+      // V6.3: Dodane kolumny CTR i Conversion Rate
+      if (h.includes('click-through rate') || h === 'ctr') columns.ctr = index;
+      if (h.includes('conversion rate')) columns.conversionRate = index;
 
       // Ustawienia
       if (h.includes('bid') && !h.includes('strategy')) columns.bid = index;
@@ -712,6 +715,7 @@ class BulkMapper {
 
   /**
    * Ustawienie formatów numerycznych
+   * V6.3: Dodane formatowanie CTR i Conversion Rate jako procenty
    */
   setNumericFormats(sheet, columns) {
     const lastRow = sheet.getLastRow();
@@ -742,16 +746,28 @@ class BulkMapper {
         .setNumberFormat('0.00');
     }
 
-    // ACOS - 0.0%
+    // ACOS - 0.00% (jako procent)
     if (columns.acos >= 0) {
       sheet.getRange(2, columns.acos + 1, lastRow - 1, 1)
-        .setNumberFormat('0.0%');
+        .setNumberFormat('0.00%');
     }
 
     // ROAS - 0.00
     if (columns.roas >= 0) {
       sheet.getRange(2, columns.roas + 1, lastRow - 1, 1)
         .setNumberFormat('0.00');
+    }
+
+    // V6.3: CTR (Click-through rate) - 0.00% (jako procent)
+    if (columns.ctr >= 0) {
+      sheet.getRange(2, columns.ctr + 1, lastRow - 1, 1)
+        .setNumberFormat('0.00%');
+    }
+
+    // V6.3: Conversion Rate - 0.00% (jako procent)
+    if (columns.conversionRate >= 0) {
+      sheet.getRange(2, columns.conversionRate + 1, lastRow - 1, 1)
+        .setNumberFormat('0.00%');
     }
   }
 }

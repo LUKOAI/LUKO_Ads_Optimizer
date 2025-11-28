@@ -346,6 +346,17 @@ class BulkAnalyzer {
 
       this.logger.log(`Analizuję ${allData.length - 1} wierszy...`, 'INFO');
 
+      // V6.3: Oblicz całkowitą sprzedaż do obliczania % total
+      let totalSales = 0;
+      for (let i = 1; i < allData.length; i++) {
+        const entity = allData[i][columns.entity] || '';
+        // Licz tylko Keyword i Product Targeting do total
+        if (entity === 'Keyword' || entity === 'Product Targeting') {
+          totalSales += this.parser.parseNumber(allData[i][columns.sales]);
+        }
+      }
+      this.logger.log(`Całkowita sprzedaż targetów: ${totalSales.toFixed(2)}€`, 'INFO');
+
       // Sprawdź czy są rekomendacje z Full Analysis
       const fullAnalysisRecs = this.getFullAnalysisRecommendations();
       if (fullAnalysisRecs.length > 0) {
@@ -437,8 +448,13 @@ class BulkAnalyzer {
           allData[i][columns.source] = classification.source || 'ANALYZED';
           allData[i][columns.status] = 'Gotowe do przeglądu';
 
-          if (classification.change) {
-            allData[i][columns.percentValue] = classification.change;
+          // V6.3: PercentValue = % total (udział w sprzedaży) zamiast % change
+          const rowSales = this.parser.parseNumber(row[columns.sales]);
+          if (totalSales > 0 && rowSales > 0) {
+            const percentOfTotal = (rowSales / totalSales * 100).toFixed(2);
+            allData[i][columns.percentValue] = percentOfTotal + '%';
+          } else {
+            allData[i][columns.percentValue] = '0%';
           }
 
           // KLUCZOWE: Automatyczne zaznaczanie
