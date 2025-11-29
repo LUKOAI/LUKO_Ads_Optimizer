@@ -1,0 +1,1194 @@
+🔧 PROMPT DO CLAUDE CODE - KOMPLEKSOWA NAPRAWA LUKO ADS OPTIMIZER 📋 KONTEKST PROJEKTU Pracujesz nad narzędziem LUKO Ads Optimizer (LAO) - zaawansowanym narzędziem do optymalizacji kampanii Amazon PPC w Google Apps Script. SYTUACJA:
+
+Wersja stara (COPY-OLD) - działa PERFEKCYJNIE, wszystkie kluczowe funkcje działają Wersja nowa (Library_V6) - przestała działać, ale ma niektóre lepsze elementy UI CEL: Naprawić nową wersję, przywracając działające funkcje ze starej + zachować lepsze UI z nowej
+
+📂 STRUKTURA PROJEKTU ✅ Wersja STARA (działająca - źródło rozwiązań)
+
+Lokalizacja: gas/ Branch: COPY-OLD-LUKO_AMZ_ADS_OPTIMIZER Script ID: 17T884ketYB8TNaJ9yhWe2qVlUr3LentWYITNWZ_T-XurMANvv0IhGytx GitHub: https://github.com/LUKOAI/LUKO_Ads_Optimizer/tree/COPY-OLD-LUKO_AMZ_ADS_OPTIMIZER/gas Arkusz: https://docs.google.com/spreadsheets/d/1DTfFDKFPqCefUMp_Djl1OuTuMyCQT2lU110HAKdzU0c/
+
+🔨 Wersja NOWA (do naprawy)
+
+Lokalizacja: google_apps_script/Library_V6/ Branch: claude/fix-luko-ads-optimizer-01TTv3kUeeMLFF3GvM2QS3MA Script ID: 1s-HeOtb_FY3WhC7IHdgeM5TwSskLhMCooXdV0DSHh14ufoqm6AdgU4lz GitHub: https://github.com/LUKOAI/LUKO_Ads_Optimizer/tree/claude/fix-luko-ads-optimizer-01TTv3kUeeMLFF3GvM2QS3MA/google_apps_script/Library_V6 Arkusz: https://docs.google.com/spreadsheets/d/130Q2h1OpwPrBTmCQeIaoFBg_ODr0MANTrawU9xUoVdA/
+
+🎯 PRIORYTETY NAPRAWY PRIORYTET 1️⃣: ANALIZA BULK I ZAZNACZANIE WIERSZY (KRYTYCZNE!) Problem: Targety się nie zaznaczają, wiersze nie są kolorowane, zmiany nie następują PRIORYTET 2️⃣: MAPOWANIE RAPORTÓW AMAZON Problem: Dwa różne formaty raportów z różnymi nazwami kolumn PRIORYTET 3️⃣: UI/UX - OKIENKA I DIALOGI Problem: Nowe okienka są mniej intuicyjne niż stare
+
+🚨 PRIORYTET 1: PRZYWRÓĆ DZIAŁANIE BULK OPERATIONS 1.1 🎯 ZAZNACZANIE I KOLOROWANIE WIERSZY STATUS: Nie działa w nowej wersji, działa perfekcyjnie w starej ZADANIE:
+
+Znajdź w starej wersji funkcje odpowiedzialne za:
+
+Automatyczne zaznaczanie checkboxów w kolumnie "Apply Change" Kolorowanie wierszy (🟢 zielony = dobry ACOS, 🔴 czerwony = zły, 🟡 żółty = review) Filtrowanie i wybór targetów spełniających kryteria
+
+Porównaj ze starej wersji (gas/) z nową (google_apps_script/Library_V6/13-BulkMapper.js) Przywróć działającą logikę ze starej wersji - kopiuj cały working code block
+
+Przykład ze starej wersji (prawdopodobnie): javascript// STARA WERSJA - to działa! function markRowsForAction(sheet, criteria) { var data = sheet.getDataRange().getValues(); var headers = data[0];
+
+// Znajdź kolumny var applyCol = headers.indexOf('Apply'); var acosCol = headers.indexOf('ACOS'); var clicksCol = headers.indexOf('Clicks'); var spendCol = headers.indexOf('Spend');
+
+var rowsToMark = []; var colors = [];
+
+for (var i = 1; i < data.length; i++) { var row = data[i]; var acos = universalParser.parseNumber(row[acosCol]); // ← WAŻNE! var clicks = universalParser.parseNumber(row[clicksCol]); var spend = universalParser.parseNumber(row[spendCol]);
+
+// Sprawdź kryteria
+if (clicks >= criteria.minClicks && spend >= criteria.minSpend) {
+  rowsToMark.push([true]);  // zaznacz checkbox
+  
+  // Określ kolor
+  if (acos < criteria.lowAcos) {
+    colors.push(['green']);
+  } else if (acos > criteria.highAcos) {
+    colors.push(['red']);
+  } else {
+    colors.push(['yellow']);
+  }
+} else {
+  rowsToMark.push([false]);
+  colors.push(['white']);
+}
+
+}
+
+// BATCH PROCESSING - jedna operacja dla wszystkich wierszy! if (rowsToMark.length > 0) { sheet.getRange(2, applyCol + 1, rowsToMark.length, 1).setValues(rowsToMark); sheet.getRange(2, 1, colors.length, sheet.getLastColumn()).setBackgrounds( colors.map(function(c) { return Array(sheet.getLastColumn()).fill(c[0]); }) ); } } NOWA WERSJA (zepsuta) - nie kopiuj tego: javascript// To jest ŹLE - każda komórka osobno! for (var i = 0; i < 900; i++) { sheet.getRange(i + 1, applyCol).setValue(true); // TIMEOUT! }
+
+1.2 🚀 BATCH PROCESSING DLA WSZYSTKICH OPERACJI KRYTYCZNE: Wszędzie gdzie w nowej wersji jest pętla z setValue() lub setBackground() - ZAMIEŃ na setValues() / setBackgrounds() Pliki do sprawdzenia:
+
+15-BulkChangeManager.js - funkcje pauzowania, zmian stawek 13-BulkMapper.js - zaznaczanie wierszy Każde miejsce z pętlą for i sheet.getRange().setValue()
+
+Pattern do znalezienia i naprawy: javascript// ❌ ŹLE - po jednej komórce: for (var i = 0; i < rows.length; i++) { sheet.getRange(i + 2, col).setValue(value); }
+
+// ✅ DOBRZE - batch: var values = rows.map(function() { return [value]; }); sheet.getRange(2, col, values.length, 1).setValues(values);
+
+1.3 🔢 PARSER LICZB - ROZPOZNAWANIE FORMATÓW MIĘDZYNARODOWYCH ‼️ TO JEST NAJBARDZIEJ KRYTYCZNE ‼️ Problem: Amazon generuje raporty z różnych krajów z różnymi formatami liczb:
+
+🇺🇸 USA: 5.5 (kropka = separator dziesiętny) 🇪🇺 Europa: 5,5 (przecinek = separator dziesiętny) 🇪🇺 Europa z tysiącami: 1.234,56 🇺🇸 USA z tysiącami: 1,234.56 Plus symbole walut: €5,50, $5.50, 5.50 EUR, 5,50 PLN
+
+Funkcja parseFloat() NIE ROZUMIE formatu europejskiego: javascriptparseFloat("5,5") → NaN → || 0 → 0 // ❌ BŁĄD! parseFloat("5.5") → 5.5 // ✓ OK tylko dla US ZADANIE: ZNAJDŹ I ZAMIEŃ WSZYSTKIE parseFloat() na universalParser.parseNumber() Pliki PEWNE do naprawy:
+
+01-Main.js - funkcje: pauseTargetsWithThresholds, changeBidsAll, applySelectedBidChanges 15-BulkChangeManager.js - wszystkie funkcje zmiany stawek i budżetów 13-BulkMapper.js - funkcje: applyFromFullAnalysis 14-BulkAnalyzer.js - wszystkie obliczenia 16-BulkValidator.js - walidacja budżetów i stawek
+
+Sprawdź KAŻDY plik i KAŻDE użycie: bashgrep -r "parseFloat" google_apps_script/Library_V6/ universalParser powinien być w nowej wersji, ale sprawdź czy jest kompletny: javascriptvar universalParser = { parseNumber: function(value) { // Jeśli już jest liczbą, zwróć if (typeof value === 'number') return value; if (!value) return 0;
+
+var str = String(value).trim();
+
+// Usuń symbole walut i kody
+str = str.replace(/[€$£¥₹]/g, '');
+str = str.replace(/\s?(USD|EUR|GBP|JPY|PLN|CZK|SEK|NOK|DKK|CHF|CAD|AUD|NZD|INR|BRL|MXN)\s?/gi, '');
+str = str.replace(/\s+/g, '');
+
+// Policz separatory
+var commas = (str.match(/,/g) || []).length;
+var dots = (str.match(/\./g) || []).length;
+
+// Jeden przecinek, zero kropek = EU format: 5,5
+if (commas === 1 && dots === 0) {
+  str = str.replace(',', '.');
+  return parseFloat(str) || 0;
+}
+
+// Jeden kropka, zero przecinków = US format: 5.5
+if (dots === 1 && commas === 0) {
+  return parseFloat(str) || 0;
+}
+
+// Wiele separatorów - określ który jest dziesiętny
+if (commas > 0 && dots > 0) {
+  var lastComma = str.lastIndexOf(',');
+  var lastDot = str.lastIndexOf('.');
+  
+  if (lastComma > lastDot) {
+    // EU: 1.234,56 - usuń kropki, zamień przecinek na kropkę
+    str = str.replace(/\./g, '').replace(',', '.');
+  } else {
+    // US: 1,234.56 - usuń przecinki
+    str = str.replace(/,/g, '');
+  }
+} else if (commas > 1) {
+  // US z wieloma przecinkami: 1,234,567.89
+  str = str.replace(/,/g, '');
+} else if (dots > 1) {
+  // EU z wieloma kropkami: 1.234.567,89
+  str = str.replace(/\./g, '').replace(',', '.');
+}
+
+var result = parseFloat(str);
+return isNaN(result) ? 0 : result;
+
+} }; Wzorzec zamiany: javascript// Przed: var clicks = parseFloat(row[clicksCol]) || 0; var spend = parseFloat(data[i][spendCol]) || 0; var acos = parseFloat(acosValue);
+
+// Po: var clicks = universalParser.parseNumber(row[clicksCol]); var spend = universalParser.parseNumber(data[i][spendCol]); var acos = universalParser.parseNumber(acosValue);
+
+1.4 🎯 LOGIKA REVIEW - TYLKO DLA PRZYPADKÓW WYMAGAJĄCYCH DECYZJI Problem: W nowej wersji WSZYSTKIE wiersze mają status "REVIEW" Powinno być: REVIEW tylko gdy:
+
+Mixed signals (dobry CTR + niska konwersja LUB odwrotnie) ACOS w szarej strefie (między break-even a high threshold) Mało danych do podjęcia decyzji Sytuacje niejednoznaczne
+
+ZADANIE: W 13-BulkMapper.js, znajdź funkcję determineAction() lub podobną i przepisz według tej logiki: javascriptfunction determineAction(row, acosSettings) { // Parse wszystkie wartości przez universalParser! var acos = universalParser.parseNumber(row.acos); var ctr = universalParser.parseNumber(row.ctr); var convRate = universalParser.parseNumber(row.conversionRate); var clicks = universalParser.parseNumber(row.clicks); var spend = universalParser.parseNumber(row.spend); var sales = universalParser.parseNumber(row.sales); var orders = universalParser.parseNumber(row.orders);
+
+var breakEven = universalParser.parseNumber(acosSettings.breakEven); var low = breakEven * 0.5; var high = breakEven * 1.5;
+
+// BENCHMARK'I AMAZON PPC (standardy branżowe) var CTR_EXCELLENT = 0.02; // >2% var CTR_GOOD = 0.008; // 0.8-2% var CTR_POOR = 0.003; // <0.3% var CONV_EXCELLENT = 0.05; // >5% var CONV_GOOD = 0.015; // 1.5-5% var CONV_POOR = 0.005; // <0.5%
+
+// === 1. BRAK WYSTARCZAJĄCYCH DANYCH === if (clicks < 10 || spend < 1) { return { classification: 'NO_IMPRESSIONS', action: 'MONITOR', reason: 'Za mało danych do podjęcia decyzji (kliknięć: ' + clicks + ', wydatki: €' + spend.toFixed(2) + ')', color: 'white', percentChange: 0 }; }
+
+// === 2. PRZYPADKI JEDNOZNACZNE - NIE REVIEW! ===
+
+// Bardzo zyskowne - zwiększ stawkę (skalowanie) if (acos < low && clicks >= 10) { return { classification: 'LOW_ACOS', action: 'INCREASE_BID', reason: 'Bardzo dobry ACOS (' + (acos * 100).toFixed(1) + '%) - zwiększ widoczność', color: 'green', percentChange: 15 }; }
+
+// Bardzo stratne + dużo wydane + zero konwersji = PAUZA if (acos > high && orders === 0 && clicks > 20 && spend >= 5) { return { classification: 'ZERO_SALES', action: 'PAUSE', reason: clicks + ' kliknięć bez sprzedaży - target nieefektywny', color: 'red', percentChange: 0 }; }
+
+// Bardzo stratne + są konwersje = OBNIŻ STAWKĘ if (acos > high && orders > 0 && spend >= 5) { return { classification: 'HIGH_ACOS', action: 'DECREASE_BID', reason: 'Wysoki ACOS (' + (acos * 100).toFixed(1) + '%) - ogranicz koszty', color: 'orange', percentChange: -20 }; }
+
+// === 3. MIXED SIGNALS - REVIEW (jedyne przypadki!) ===
+
+// Dobry CTR ale niska konwersja = problem z produktem/landing page if (ctr > CTR_GOOD && convRate < CONV_POOR && clicks >= 20) { return { classification: 'LOW_CTR', action: 'REVIEW_RELEVANCE', reason: 'Dobry CTR (' + (ctr * 100).toFixed(2) + '%) ale niska konwersja (' + (convRate * 100).toFixed(2) + '%) - sprawdź produkt/cenę', color: 'yellow', percentChange: 0 }; }
+
+// Wysoka konwersja ale niski CTR = problem z relevance/keyword if (convRate > CONV_GOOD && ctr < CTR_POOR && clicks >= 10) { return { classification: 'LOW_CTR', action: 'REVIEW_RELEVANCE', reason: 'Wysoka konwersja ale niski CTR - optymalizuj keyword/targeting', color: 'yellow', percentChange: 0 }; }
+
+// ACOS w szarej strefie (między break-even a high) if (acos >= breakEven && acos <= high && clicks >= 10) { return { classification: 'MODERATE_ACOS', action: 'REVIEW_RELEVANCE', reason: 'ACOS w szarej strefie (' + (acos * 100).toFixed(1) + '%) - wymaga analizy', color: 'yellow', percentChange: 0 }; }
+
+// === 4. DEFAULT - MONITOR (wszystko OK) === return { classification: 'GOOD_ACOS', action: 'MONITOR', reason: 'Target działa stabilnie', color: 'white', percentChange: 0 }; } WAŻNE:
+
+REVIEW powinien być przypisany TYLKO w sekcji 3 (mixed signals) Wszystkie inne przypadki to jednoznaczne akcje: INCREASE_BID, DECREASE_BID, PAUSE, lub MONITOR
+
+1.5 🔗 FULL ANALYSIS → BULK_BUILDER MATCHING Problem: "No matching targets found between BULK_Builder and Full Analysis" Przyczyna: Funkcja findFullAnalysisMatch() szuka po dokładnym dopasowaniu nazw, ale:
+
+Nazwy mogą się różnić między raportami Kolumny mają różne nazwy (Targeting vs Keyword text)
+
+ZADANIE: W 14-BulkAnalyzer.js, dodaj fuzzy matching z normalizacją: javascript// Dodaj na początek pliku function normalizeForMatching(text) { if (!text) return '';
+
+return String(text) .toLowerCase() .replace(/[^a-z0-9\s]/g, '') // usuń znaki specjalne .replace(/\s+/g, ' ') // normalizuj spacje .trim(); }
+
+function fuzzyMatchScore(str1, str2) { var norm1 = normalizeForMatching(str1); var norm2 = normalizeForMatching(str2);
+
+// Dokładne dopasowanie if (norm1 === norm2) return 1.0;
+
+// Jeden zawiera drugi if (norm1.includes(norm2) || norm2.includes(norm1)) { var longer = Math.max(norm1.length, norm2.length); var shorter = Math.min(norm1.length, norm2.length); return shorter / longer; }
+
+// Wspólne słowa var words1 = norm1.split(/\s+/); var words2 = norm2.split(/\s+/);
+
+var matches = 0; for (var i = 0; i < words1.length; i++) { for (var j = 0; j < words2.length; j++) { if (words1[i] === words2[j] && words1[i].length > 2) { // ignoruj krótkie słowa matches++; break; } } }
+
+var totalWords = Math.max(words1.length, words2.length); return matches / totalWords; }
+
+function findFullAnalysisMatch(bulkRow, fullAnalysisData, threshold) { threshold = threshold || 0.75; // 75% podobieństwa
+
+var bulkCampaign = normalizeForMatching(bulkRow.campaign); var bulkAdGroup = normalizeForMatching(bulkRow.adGroup); var bulkTarget = normalizeForMatching(bulkRow.targeting || bulkRow.keywordText);
+
+var bestMatch = null; var bestScore = 0;
+
+for (var i = 0; i < fullAnalysisData.length; i++) { var faRow = fullAnalysisData[i];
+
+var campaignScore = fuzzyMatchScore(bulkCampaign, faRow.campaign);
+var adGroupScore = fuzzyMatchScore(bulkAdGroup, faRow.adGroup);
+var targetScore = fuzzyMatchScore(bulkTarget, faRow.targeting || faRow.keywordText);
+
+// Średnia ważona (target najważniejszy)
+var totalScore = (campaignScore * 0.3) + (adGroupScore * 0.3) + (targetScore * 0.4);
+
+if (totalScore > bestScore && totalScore >= threshold) {
+  bestScore = totalScore;
+  bestMatch = faRow;
+}
+
+}
+
+return { match: bestMatch, confidence: bestScore }; }
+
+🗺️ PRIORYTET 2: MAPOWANIE RAPORTÓW AMAZON 2.1 📊 DWA FORMATY RAPORTÓW - UNIFIED MAPPING KRYTYCZNY PROBLEM: Amazon zwraca DWA różne formaty raportów z różnymi nazwami kolumn: Format 1: SP Search Term Report
+
+Keyword text Match type Customer search term Click-through rate CPC Sales Orders Units Conversion rate ACOS ROAS
+
+Format 2: Sponsored_Products_Search_term_
+
+Targeting ← TO SAMO CO "Keyword text"! Match Type + Product targeting expression ← razem = "Match type" Customer Search Term Click-Thru Rate (CTR) Cost Per Click (CPC) 7 Day Total Sales 7 Day Total Orders (#) 7 Day Total Units (#) 7 Day Conversion Rate Total Advertising Cost of Sales (ACOS) Total Return on Advertising Spend (ROAS)
+
+ZADANIE: W 13-BulkMapper.js, funkcja mapBulkColumns() - dodaj system aliasów: javascript// Na początku pliku - KOMPLETNA MAPA ALIASÓW var AMAZON_COLUMN_ALIASES = { portfolio: ['Portfolio name (Informational only)', 'Portfolio name', 'Portfolio Name'], campaign: ['Campaign name (Informational only)', 'Campaign Name', 'Campaign name'], adGroup: ['Ad group name (Informational only)', 'Ad Group Name', 'Ad group name'], targeting: ['Keyword text', 'Targeting', 'Keyword Text'], // ← KRYTYCZNE! matchType: ['Match type', 'Match Type'], productTargeting: ['Product targeting expression', 'Product Targeting'], searchTerm: ['Customer search term', 'Customer Search Term'], impressions: ['Impressions'], clicks: ['Clicks'], ctr: ['Click-through rate', 'Click-Thru Rate (CTR)', 'CTR'], cpc: ['CPC', 'Cost Per Click (CPC)'], spend: ['Spend'], sales: ['Sales', '7 Day Total Sales'], orders: ['Orders', '7 Day Total Orders (#)', '7 Day Total Orders'], units: ['Units', '7 Day Total Units (#)', '7 Day Total Units'], conversionRate: ['Conversion rate', '7 Day Conversion Rate'], acos: ['ACOS', 'Total Advertising Cost of Sales (ACOS)'], roas: ['ROAS', 'Total Return on Advertising Spend (ROAS)'],
+
+// Kolumny tylko w Format 1 productCampaignId: ['Product Campaign ID'], adGroupId: ['Ad group ID', 'Ad Group ID'], keywordId: ['Keyword ID'], productTargetingId: ['Product Targeting ID'], state: ['State'], campaignState: ['Campaign state (Informational only)', 'Campaign State'], bid: ['Bid'],
+
+// Kolumny tylko w Format 2 startDate: ['Start Date'], endDate: ['End Date'], currency: ['Currency'], country: ['Country'] };
+
+// Funkcja do znajdowania kolumny po aliasach function findColumnIndex(headers, aliases) { for (var i = 0; i < aliases.length; i++) { var alias = aliases[i];
+
+// Sprawdź dokładne dopasowanie
+var exactIndex = headers.indexOf(alias);
+if (exactIndex !== -1) return exactIndex;
+
+// Sprawdź case-insensitive
+for (var j = 0; j < headers.length; j++) {
+  if (headers[j].toLowerCase() === alias.toLowerCase()) {
+    return j;
+  }
+}
+
+}
+
+return -1; // nie znaleziono }
+
+// Użycie w mapBulkColumns(): function mapBulkColumns() { var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('BULK_Source'); if (!sheet) { throw new Error('Brak arkusza BULK_Source'); }
+
+var data = sheet.getDataRange().getValues(); var headers = data[0];
+
+// Znajdź kolumny używając aliasów var cols = { portfolio: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.portfolio), campaign: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.campaign), adGroup: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.adGroup), targeting: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.targeting), // ← będzie działać dla OBU formatów! matchType: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.matchType), searchTerm: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.searchTerm), impressions: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.impressions), clicks: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.clicks), ctr: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.ctr), cpc: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.cpc), spend: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.spend), sales: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.sales), orders: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.orders), conversionRate: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.conversionRate), acos: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.acos), roas: findColumnIndex(headers, AMAZON_COLUMN_ALIASES.roas) };
+
+// Walidacja - które kolumny są wymagane var requiredCols = ['campaign', 'adGroup', 'targeting', 'clicks', 'spend', 'acos']; var missingCols = [];
+
+for (var i = 0; i < requiredCols.length; i++) { var colName = requiredCols[i]; if (cols[colName] === -1) { missingCols.push(colName); } }
+
+if (missingCols.length > 0) { throw new Error('Brakujące wymagane kolumny: ' + missingCols.join(', ') + '\n\nSprawdź czy wkleiłeś poprawny raport z Amazon.'); }
+
+Logger.log('✅ Zmapowano kolumny: ' + JSON.stringify(cols)); return cols; }
+
+💬 PRIORYTET 3: UI/UX - INTUICYJNE OKIENKA 3.1 💰 DIALOG ZMIAN STAWEK - HYBRYDOWY (stare + nowe) Wymagania:
+
+✅ Jasne wyjaśnienia co robi każda opcja ✅ Radio buttons z sugerowanymi wartościami (łatwy wybór) ✅ Możliwość wpisania własnej wartości ✅ Strzałki góra/dół do przewijania wartości ✅ Dropdown "Zastosuj do:" ✅ Walidacja z ostrzeżeniami (z nowej wersji)
+
+ZADANIE: Stwórz nowy plik BidChangeDialog.html w google_apps_script/Library_V6/: html<!DOCTYPE html>
+
+<html> <head> <base target="_top"> <style> * { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  padding: 24px;
+  background: #f8f9fa;
+}
+
+.dialog {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+  color: #1f1f1f;
+}
+
+.subtitle {
+  color: #5f6368;
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.section {
+  margin-bottom: 24px;
+}
+
+.section-title {
+  font-weight: 500;
+  margin-bottom: 12px;
+  color: #1f1f1f;
+  font-size: 14px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  padding: 12px;
+  border: 2px solid #e8eaed;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.radio-option:hover {
+  border-color: #1a73e8;
+  background: #f1f7ff;
+}
+
+.radio-option.selected {
+  border-color: #1a73e8;
+  background: #e8f0fe;
+}
+
+.radio-option input[type="radio"] {
+  margin-right: 12px;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.radio-label {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.radio-text {
+  font-weight: 500;
+  color: #1f1f1f;
+}
+
+.radio-description {
+  font-size: 12px;
+  color: #5f6368;
+  margin-top: 4px;
+}
+
+input[type="number"] {
+  width: 80px;
+  padding: 8px 12px;
+  border: 2px solid #e8eaed;
+  border-radius: 6px;
+  font-size: 14px;
+  text-align: center;
+}
+
+input[type="number"]:focus {
+  outline: none;
+  border-color: #1a73e8;
+}
+
+.unit {
+  font-weight: 500;
+  color: #5f6368;
+  margin-left: 4px;
+}
+
+select {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e8eaed;
+  border-radius: 8px;
+  font-size: 14px;
+  background: white;
+  cursor: pointer;
+}
+
+select:focus {
+  outline: none;
+  border-color: #1a73e8;
+}
+
+.warning-box {
+  background: #fff3cd;
+  border: 2px solid #ffc107;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 16px;
+  display: none;
+}
+
+.warning-box.show {
+  display: block;
+}
+
+.warning-icon {
+  color: #f57c00;
+  font-weight: bold;
+  margin-right: 8px;
+}
+
+.warning-text {
+  color: #7a5d00;
+  font-size: 14px;
+}
+
+.buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+button {
+  flex: 1;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: #1a73e8;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #1557b0;
+}
+
+.btn-secondary {
+  background: white;
+  color: #5f6368;
+  border: 2px solid #e8eaed;
+}
+
+.btn-secondary:hover {
+  background: #f8f9fa;
+}
+
+.best-practices {
+  background: #e8f5e9;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.best-practices-title {
+  font-weight: 500;
+  color: #1e7e34;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.best-practices ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.best-practices li {
+  color: #2e7d32;
+  font-size: 12px;
+  margin-bottom: 4px;
+  padding-left: 16px;
+  position: relative;
+}
+
+.best-practices li:before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  font-weight: bold;
+}
+
+</style> </head> <body> <div class="dialog"> <h3>💰 Dostosuj Stawki Targetów</h3> <div class="subtitle">Wybierz typ zmiany i grupę docelową</div>
+<!-- Ostrzeżenia -->
+<div id="warningBox" class="warning-box">
+  <span class="warning-icon">⚠️</span>
+  <span id="warningText" class="warning-text"></span>
+</div>
+
+<!-- Typ zmiany -->
+<div class="section">
+  <div class="section-title">🎯 Wybierz typ zmiany stawki:</div>
+  
+  <div class="radio-option" onclick="selectOption(this, 'increase-percent')">
+    <input type="radio" name="changeType" value="increase-percent" checked>
+    <div class="radio-label">
+      <span class="radio-text">Zwiększ o</span>
+      <input type="number" id="increasePercent" value="15" step="5" min="5" max="200" onchange="validateInput()">
+      <span class="unit">%</span>
+    </div>
+  </div>
+  <div class="radio-description" style="margin-left: 44px; margin-top: -4px; margin-bottom: 12px;">
+    Dla targetów z dobrym ACOS - zwiększ widoczność
+  </div>
+  
+  <div class="radio-option" onclick="selectOption(this, 'decrease-percent')">
+    <input type="radio" name="changeType" value="decrease-percent">
+    <div class="radio-label">
+      <span class="radio-text">Zmniejsz o</span>
+      <input type="number" id="decreasePercent" value="20" step="5" min="5" max="100" onchange="validateInput()">
+      <span class="unit">%</span>
+    </div>
+  </div>
+  <div class="radio-description" style="margin-left: 44px; margin-top: -4px; margin-bottom: 12px;">
+    Dla targetów z wysokim ACOS - ogranicz koszty
+  </div>
+  
+  <div class="radio-option" onclick="selectOption(this, 'increase-amount')">
+    <input type="radio" name="changeType" value="increase-amount">
+    <div class="radio-label">
+      <span class="radio-text">Zwiększ o</span>
+      <input type="number" id="increaseAmount" value="0.10" step="0.05" min="0.01" max="10" onchange="validateInput()">
+      <span class="unit">€</span>
+    </div>
+  </div>
+  <div class="radio-description" style="margin-left: 44px; margin-top: -4px; margin-bottom: 12px;">
+    Precyzyjne dostosowanie stawki
+  </div>
+  
+  <div class="radio-option" onclick="selectOption(this, 'set-amount')">
+    <input type="radio" name="changeType" value="set-amount">
+    <div class="radio-label">
+      <span class="radio-text">Ustaw na</span>
+      <input type="number" id="setAmount" value="0.50" step="0.05" min="0.01" max="20" onchange="validateInput()">
+      <span class="unit">€</span>
+    </div>
+  </div>
+  <div class="radio-description" style="margin-left: 44px; margin-top: -4px; margin-bottom: 12px;">
+    Ujednolicona stawka dla grupy
+  </div>
+</div>
+
+<!-- Zastosuj do -->
+<div class="section">
+  <div class="section-title">📊 Zastosuj do:</div>
+  <select id="applyTo" onchange="updateSummary()">
+    <option value="checked">Tylko zaznaczone wiersze</option>
+    <option value="profitable">Targety zyskowne (ACOS < Break-Even)</option>
+    <option value="losing">Targety ze stratą (ACOS > Break-Even)</option>
+    <option value="no-sales">Targety bez sprzedaży</option>
+    <option value="all">Wszystkie targety (UWAGA!)</option>
+  </select>
+</div>
+
+<!-- Best practices -->
+<div class="best-practices">
+  <div class="best-practices-title">💡 Dobre praktyki:</div>
+  <ul>
+    <li>Zwiększaj stawki o 10-20% dla profitowych targetów</li>
+    <li>Zmniejszaj o 20-30% gdy ACOS > 1.5× Break-Even</li>
+    <li>Testuj zmiany przez 7-14 dni przed kolejną optymalizacją</li>
+    <li>Nie zmieniaj stawek częściej niż co 3-4 dni</li>
+  </ul>
+</div>
+
+<!-- Przyciski -->
+<div class="buttons">
+  <button class="btn-secondary" onclick="google.script.host.close()">❌ Anuluj</button>
+  <button class="btn-primary" onclick="applyChanges()">✅ Zastosuj zmiany</button>
+</div>
+
+</div> <script> function selectOption(element, value) { // Usuń selected z wszystkich document.querySelectorAll('.radio-option').forEach(function(opt) { opt.classList.remove('selected'); }); // Dodaj do klikniętego element.classList.add('selected'); // Zaznacz radio element.querySelector('input[type="radio"]').checked = true; validateInput(); } function validateInput() { var type = document.querySelector('input[name="changeType"]:checked').value; var value; switch(type) { case 'increase-percent': value = parseFloat(document.getElementById('increasePercent').value); break; case 'decrease-percent': value = parseFloat(document.getElementById('decreasePercent').value); break; case 'increase-amount': value = parseFloat(document.getElementById('increaseAmount').value); break; case 'set-amount': value = parseFloat(document.getElementById('setAmount').value); break; } var warnings = []; // Walidacja if (type.includes('percent') && value > 50) { warnings.push('Zmiana > 50% może drastycznie wpłynąć na wydatki i pozycje reklam'); } if (type.includes('percent') && value > 100) { warnings.push('⚠️ UWAGA: Zmiana > 100% wymaga szczególnej ostrożności! To podwojenie stawek.'); } if (type.includes('amount') && value > 5) { warnings.push('Stawka > 5€ jest bardzo wysoka! Sprawdź czy to na pewno właściwa wartość.'); } if (type === 'set-amount' && value > 10) { warnings.push('🚨 KRYTYCZNE: Stawka > 10€ - czy na pewno? Sprawdź walutę i wartość!'); } // Pokaż/ukryj ostrzeżenia var warningBox = document.getElementById('warningBox'); var warningText = document.getElementById('warningText'); if (warnings.length > 0) { warningText.textContent = warnings.join(' '); warningBox.classList.add('show'); } else { warningBox.classList.remove('show'); } } function updateSummary() { // Tu możesz dodać live preview liczby targetów } function applyChanges() { var type = document.querySelector('input[name="changeType"]:checked').value; var value; switch(type) { case 'increase-percent': value = parseFloat(document.getElementById('increasePercent').value); break; case 'decrease-percent': value = -parseFloat(document.getElementById('decreasePercent').value); break; case 'increase-amount': value = parseFloat(document.getElementById('increaseAmount').value); break; case 'set-amount': value = parseFloat(document.getElementById('setAmount').value); break; } var applyTo = document.getElementById('applyTo').value; // Potwierdzenie dla dużych zmian if (Math.abs(value) > 100 || (type === 'set-amount' && value > 10)) { if (!confirm('⚠️ To bardzo duża zmiana. Czy na pewno chcesz kontynuować?')) { return; } } // Wyślij do Apps Script google.script.run .withSuccessHandler(function(result) { alert('✅ Sukces!\n\nZmieniono ' + result.count + ' stawek.'); google.script.host.close(); }) .withFailureHandler(function(error) { alert('❌ Błąd: ' + error.message); }) .applyBidChanges({ changeType: type, value: value, applyTo: applyTo }); } // Inicjalizacja document.addEventListener('DOMContentLoaded', function() { validateInput(); // Dodaj listenery do wszystkich input[type=number] document.querySelectorAll('input[type="number"]').forEach(function(input) { input.addEventListener('input', validateInput); input.addEventListener('change', validateInput); }); }); </script> </body> </html> Dodaj funkcję w 15-BulkChangeManager.js: javascriptfunction showBidChangeDialog() { var html = HtmlService.createHtmlOutputFromFile('BidChangeDialog') .setWidth(500) .setHeight(700);
+SpreadsheetApp.getUi().showModalDialog(html, 'Dostosuj Stawki'); }
+
+function applyBidChanges(params) { var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('BULK_Builder'); if (!sheet) { throw new Error('Brak arkusza BULK_Builder'); }
+
+var data = sheet.getDataRange().getValues(); var headers = data[0];
+
+// Znajdź kolumny var cols = { apply: headers.indexOf('Apply'), currentBid: headers.indexOf('Bid'), newBid: headers.indexOf('New Bid'), acos: headers.indexOf('ACOS'), sales: headers.indexOf('Sales') };
+
+var acosSettings = getAcosSettings(); var changedCount = 0; var newBids = [];
+
+for (var i = 1; i < data.length; i++) { var row = data[i]; var shouldProcess = false;
+
+// Określ czy przetwarzać ten wiersz
+switch(params.applyTo) {
+  case 'checked':
+    shouldProcess = row[cols.apply] === true;
+    break;
+  case 'profitable':
+    shouldProcess = universalParser.parseNumber(row[cols.acos]) < acosSettings.breakEven;
+    break;
+  case 'losing':
+    shouldProcess = universalParser.parseNumber(row[cols.acos]) > acosSettings.breakEven;
+    break;
+  case 'no-sales':
+    shouldProcess = universalParser.parseNumber(row[cols.sales]) === 0;
+    break;
+  case 'all':
+    shouldProcess = true;
+    break;
+}
+
+if (!shouldProcess) {
+  newBids.push([row[cols.newBid] || '']);
+  continue;
+}
+
+// Oblicz nową stawkę
+var currentBid = universalParser.parseNumber(row[cols.currentBid]);
+var newBid;
+
+switch(params.changeType) {
+  case 'increase-percent':
+    newBid = currentBid * (1 + params.value / 100);
+    break;
+  case 'decrease-percent':
+    newBid = currentBid * (1 + params.value / 100);  // value jest już ujemne
+    break;
+  case 'increase-amount':
+    newBid = currentBid + params.value;
+    break;
+  case 'set-amount':
+    newBid = params.value;
+    break;
+}
+
+// Zaokrąglij do 2 miejsc
+newBid = Math.round(newBid * 100) / 100;
+
+// Minimalna stawka 0.02€
+if (newBid < 0.02) newBid = 0.02;
+
+newBids.push([newBid]);
+changedCount++;
+
+}
+
+// Zapisz batch if (newBids.length > 0) { sheet.getRange(2, cols.newBid + 1, newBids.length, 1).setValues(newBids); }
+
+return { count: changedCount }; }
+
+3.2 ⚙️ DIALOG ACOS - 3 POLA Z INTELIGENTNYM AUTO-FILL Wymagania:
+
+3 pola: Low ACOS, Break-Even ACOS, High ACOS Domyślna logika: Low = 50% BE, High = 200% BE Inteligentne auto-update: Gdy zmieniasz BE → automatycznie przelicz Low i High Manual override: Gdy ręcznie zmienisz Low lub High → przestań je auto-przeliczać Zachować ładne wyjaśnienia co oznacza każdy próg
+
+ZADANIE: Zmodyfikuj 10-AcosSettings.html: html<!DOCTYPE html>
+
+<html> <head> <base target="_top"> <style> * { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Google Sans', Roboto, Arial, sans-serif;
+  padding: 24px;
+  background: #f8f9fa;
+}
+
+.dialog {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  max-width: 600px;
+}
+
+h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+  color: #1f1f1f;
+}
+
+.subtitle {
+  color: #5f6368;
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.info-box {
+  background: #e8f0fe;
+  border-left: 4px solid #1a73e8;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.info-box strong {
+  color: #1557b0;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.info-box p {
+  color: #174ea6;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.acos-field {
+  background: white;
+  border: 2px solid #e8eaed;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 16px;
+  transition: all 0.2s;
+}
+
+.acos-field:hover {
+  border-color: #1a73e8;
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.1);
+}
+
+.acos-field.highlight {
+  border-color: #1a73e8;
+  background: #f1f7ff;
+}
+
+.field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.field-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 16px;
+  color: #1f1f1f;
+}
+
+.field-icon {
+  font-size: 24px;
+}
+
+.field-input-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+input[type="number"] {
+  flex: 1;
+  padding: 16px;
+  border: 2px solid #e8eaed;
+  border-radius: 8px;
+  font-size: 24px;
+  font-weight: 600;
+  text-align: center;
+  width: 120px;
+}
+
+input[type="number"]:focus {
+  outline: none;
+  border-color: #1a73e8;
+  background: #f1f7ff;
+}
+
+.unit {
+  font-size: 24px;
+  font-weight: 600;
+  color: #5f6368;
+}
+
+.auto-badge {
+  background: #e8f5e9;
+  color: #1e7e34;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.manual-badge {
+  background: #fff3e0;
+  color: #e65100;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.field-description {
+  color: #5f6368;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.formula-hint {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #5f6368;
+  font-family: 'Roboto Mono', monospace;
+}
+
+.buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+button {
+  flex: 1;
+  padding: 14px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: #1a73e8;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #1557b0;
+  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.3);
+}
+
+.btn-secondary {
+  background: white;
+  color: #5f6368;
+  border: 2px solid #e8eaed;
+}
+
+.btn-secondary:hover {
+  background: #f8f9fa;
+  border-color: #dadce0;
+}
+
+.tip-box {
+  background: #fef7e0;
+  border-left: 4px solid #f9ab00;
+  padding: 16px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+
+.tip-box strong {
+  color: #b06000;
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.tip-box ul {
+  margin: 0;
+  padding-left: 20px;
+  color: #7a5d00;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+</style> </head> <body> <div class="dialog"> <h3>⚙️ Ustawienia ACOS</h3> <div class="subtitle">Określ progi rentowności dla twoich kampanii Amazon PPC</div>
+<!-- Wyjaśnienie -->
+<div class="info-box">
+  <strong>💡 Co to jest ACOS?</strong>
+  <p>
+    <strong>ACOS</strong> (Advertising Cost of Sales) = Koszt reklamy ÷ Sprzedaż × 100%<br>
+    <strong>Break-Even ACOS</strong> to maksymalny ACOS przy którym kampania jest jeszcze rentowna.<br>
+    <em>Przykład:</em> Przy marży 25% → Break-Even ACOS = 20-25%
+  </p>
+</div>
+
+<!-- LOW ACOS -->
+<div class="acos-field" id="lowField">
+  <div class="field-header">
+    <div class="field-label">
+      <span class="field-icon">🟢</span>
+      <span>Doskonały ACOS (Low)</span>
+    </div>
+    <span id="lowBadge" class="auto-badge">Auto</span>
+  </div>
+  
+  <div class="field-input-row">
+    <input type="number" 
+           id="lowAcos" 
+           value="10" 
+           step="1" 
+           min="1" 
+           max="100"
+           oninput="handleLowChange()"
+           onfocus="highlightField('lowField')">
+    <span class="unit">%</span>
+  </div>
+  
+  <div class="field-description">
+    Targety z ACOS poniżej tego progu są <strong>bardzo zyskowne</strong> i warto je skalować (zwiększyć stawki).
+  </div>
+  
+  <div class="formula-hint" id="lowFormula">
+    Domyślnie: 50% × Break-Even
+  </div>
+</div>
+
+<!-- BREAK-EVEN ACOS -->
+<div class="acos-field highlight" id="beField">
+  <div class="field-header">
+    <div class="field-label">
+      <span class="field-icon">🎯</span>
+      <span>Break-Even ACOS</span>
+    </div>
+  </div>
+  
+  <div class="field-input-row">
+    <input type="number" 
+           id="breakEvenAcos" 
+           value="20" 
+           step="1" 
+           min="1" 
+           max="100"
+           oninput="handleBreakEvenChange()"
+           onfocus="highlightField('beField')">
+    <span class="unit">%</span>
+  </div>
+  
+  <div class="field-description">
+    Próg rentowności kampanii. ACOS równy tej wartości oznacza <strong>zero zysku, zero straty</strong>. Wartość ta odpowiada twojej marży na produkcie.
+  </div>
+</div>
+
+<!-- HIGH ACOS -->
+<div class="acos-field" id="highField">
+  <div class="field-header">
+    <div class="field-label">
+      <span class="field-icon">🔴</span>
+      <span>Wysoki ACOS (High)</span>
+    </div>
+    <span id="highBadge" class="auto-badge">Auto</span>
+  </div>
+  
+  <div class="field-input-row">
+    <input type="number" 
+           id="highAcos" 
+           value="40" 
+           step="1" 
+           min="1" 
+           max="200"
+           oninput="handleHighChange()"
+           onfocus="highlightField('highField')">
+    <span class="unit">%</span>
+  </div>
+  
+  <div class="field-description">
+    Targety z ACOS powyżej tego progu są <strong>bardzo stratne</strong> i należy je pauzować lub mocno obniżyć stawki.
+  </div>
+  
+  <div class="formula-hint" id="highFormula">
+    Domyślnie: 200% × Break-Even
+  </div>
+</div>
+
+<!-- Wskazówki -->
+<div class="tip-box">
+  <strong>💡 Dobre praktyki:</strong>
+  <ul>
+    <li>Break-Even ACOS powinien odpowiadać twojej marży zysku (np. marża 20% → BE = 15-20%)</li>
+    <li>Low ACOS (doskonały) zwykle to 50% Break-Even lub mniej</li>
+    <li>High ACOS (stratny) zwykle to 150-200% Break-Even</li>
+    <li>Możesz ręcznie dostosować Low i High jeśli masz inne strategie</li>
+  </ul>
+</div>
+
+<!-- Przyciski -->
+<div class="buttons">
+  <button class="btn-secondary" onclick="google.script.host.close()">Anuluj</button>
+  <button class="btn-primary" onclick="saveSettings()">💾 Zapisz ustawienia</button>
+</div>
+
+</div> <script> // Flagi śledzące czy wartości były ręcznie zmienione var lowManuallyChanged = false; var highManuallyChanged = false; // Poprzednie wartości do detekcji zmian var lastBreakEven = 20; var lastLow = 10; var lastHigh = 40; function highlightField(fieldId) { // Usuń highlight ze wszystkich document.querySelectorAll('.acos-field').forEach(function(field) { field.classList.remove('highlight'); }); // Dodaj do wybranego document.getElementById(fieldId).classList.add('highlight'); } function handleBreakEvenChange() { var breakEven = parseFloat(document.getElementById('breakEvenAcos').value) || 20; // Jeśli Low nie był ręcznie zmieniony → auto-update if (!lowManuallyChanged) { var newLow = Math.round(breakEven * 0.5); document.getElementById('lowAcos').value = newLow; document.getElementById('lowFormula').textContent = 'Auto: 50% × ' + breakEven + '% = ' + newLow + '%'; } // Jeśli High nie był ręcznie zmieniony → auto-update if (!highManuallyChanged) { var newHigh = Math.round(breakEven * 2); document.getElementById('highAcos').value = newHigh; document.getElementById('highFormula').textContent = 'Auto: 200% × ' + breakEven + '% = ' + newHigh + '%'; } lastBreakEven = breakEven; } function handleLowChange() { var currentLow = parseFloat(document.getElementById('lowAcos').value); var breakEven = parseFloat(document.getElementById('breakEvenAcos').value) || 20; var expectedLow = Math.round(breakEven * 0.5); // Sprawdź czy to była manualna zmiana (różna od oczekiwanej auto-wartości) if (Math.abs(currentLow - expectedLow) > 0.5) { lowManuallyChanged = true; document.getElementById('lowBadge').textContent = 'Własna'; document.getElementById('lowBadge').className = 'manual-badge'; document.getElementById('lowFormula').textContent = 'Wartość ręcznie dostosowana (nie będzie się auto-zmieniać)'; } else { // User wrócił do wartości auto lowManuallyChanged = false; document.getElementById('lowBadge').textContent = 'Auto'; document.getElementById('lowBadge').className = 'auto-badge'; document.getElementById('lowFormula').textContent = 'Auto: 50% × ' + breakEven + '% = ' + expectedLow + '%'; } lastLow = currentLow; } function handleHighChange() { var currentHigh = parseFloat(document.getElementById('highAcos').value); var breakEven = parseFloat(document.getElementById('breakEvenAcos').value) || 20; var expectedHigh = Math.round(breakEven * 2); // Sprawdź czy to była manualna zmiana if (Math.abs(currentHigh - expectedHigh) > 0.5) { highManuallyChanged = true; document.getElementById('highBadge').textContent = 'Własna'; document.getElementById('highBadge').className = 'manual-badge'; document.getElementById('highFormula').textContent = 'Wartość ręcznie dostosowana (nie będzie się auto-zmieniać)'; } else { // User wrócił do wartości auto highManuallyChanged = false; document.getElementById('highBadge').textContent = 'Auto'; document.getElementById('highBadge').className = 'auto-badge'; document.getElementById('highFormula').textContent = 'Auto: 200% × ' + breakEven + '% = ' + expectedHigh + '%'; } lastHigh = currentHigh; } function saveSettings() { var low = parseFloat(document.getElementById('lowAcos').value); var breakEven = parseFloat(document.getElementById('breakEvenAcos').value); var high = parseFloat(document.getElementById('highAcos').value); // Walidacja if (!low || low < 1 || low > 100) { alert('❌ Low ACOS musi być między 1% a 100%'); return; } if (!breakEven || breakEven < 1 || breakEven > 100) { alert('❌ Break-Even ACOS musi być między 1% a 100%'); return; } if (!high || high < 1 || high > 200) { alert('❌ High ACOS musi być między 1% a 200%'); return; } // Sprawdź logiczną kolejność if (low >= breakEven) { alert('⚠️ Low ACOS (' + low + '%) powinien być mniejszy niż Break-Even (' + breakEven + '%)'); return; } if (high <= breakEven) { alert('⚠️ High ACOS (' + high + '%) powinien być większy niż Break-Even (' + breakEven + '%)'); return; } // Zapisz google.script.run .withSuccessHandler(function() { alert('✅ Zapisano ustawienia ACOS!\n\n' + '🟢 Low (doskonały): < ' + low + '%\n' + '🎯 Break-Even: ' + breakEven + '%\n' + '🔴 High (stratny): > ' + high + '%'); google.script.host.close(); }) .withFailureHandler(function(error) { alert('❌ Błąd zapisu: ' + error.message); }) .saveAcosSettings({ low: low, breakEven: breakEven, high: high }); } // Inicjalizacja po załadowaniu document.addEventListener('DOMContentLoaded', function() { // Załaduj obecne ustawienia z arkusza google.script.run .withSuccessHandler(function(settings) { if (settings) { document.getElementById('lowAcos').value = settings.low || 10; document.getElementById('breakEvenAcos').value = settings.breakEven || 20; document.getElementById('highAcos').value = settings.high || 40; // Ustaw początkowe wartości lastLow = settings.low || 10; lastBreakEven = settings.breakEven || 20; lastHigh = settings.high || 40; // Sprawdź czy są to wartości auto czy custom var expectedLow = Math.round(lastBreakEven * 0.5); var expectedHigh = Math.round(lastBreakEven * 2); if (Math.abs(lastLow - expectedLow) > 0.5) { lowManuallyChanged = true; document.getElementById('lowBadge').textContent = 'Własna'; document.getElementById('lowBadge').className = 'manual-badge'; document.getElementById('lowFormula').textContent = 'Wartość ręcznie dostosowana'; } if (Math.abs(lastHigh - expectedHigh) > 0.5) { highManuallyChanged = true; document.getElementById('highBadge').textContent = 'Własna'; document.getElementById('highBadge').className = 'manual-badge'; document.getElementById('highFormula').textContent = 'Wartość ręcznie dostosowana'; } } }) .getAcosSettings(); }); </script> </body> </html> Funkcje w 01-Main.js lub 10-AcosSettings-gs.js: javascriptfunction showAcosSettings() { var html = HtmlService.createHtmlOutputFromFile('10-AcosSettings') .setWidth(650) .setHeight(750);
+SpreadsheetApp.getUi().showModalDialog(html, 'Ustawienia ACOS'); }
+
+function getAcosSettings() { var docProps = PropertiesService.getDocumentProperties();
+
+var low = parseFloat(docProps.getProperty('ACOS_LOW')) || 10; var breakEven = parseFloat(docProps.getProperty('ACOS_BREAK_EVEN')) || 20; var high = parseFloat(docProps.getProperty('ACOS_HIGH')) || 40;
+
+return { low: low, breakEven: breakEven, high: high }; }
+
+function saveAcosSettings(settings) { var docProps = PropertiesService.getDocumentProperties();
+
+docProps.setProperty('ACOS_LOW', settings.low.toString()); docProps.setProperty('ACOS_BREAK_EVEN', settings.breakEven.toString()); docProps.setProperty('ACOS_HIGH', settings.high.toString());
+
+// Wyczyść cache aby nowe ustawienia były od razu aktywne clearAcosCache();
+
+Logger.log('✅ ACOS Settings saved: Low=' + settings.low + '%, BE=' + settings.breakEven + '%, High=' + settings.high + '%');
+
+return true; }
+
+Jak to działa:
+
+Domyślnie otwiera się z wartościami:
+
+Low = 10% (50% × 20%) Break-Even = 20% High = 40% (200% × 20%) Badge "Auto" przy Low i High
+
+Zmieniasz Break-Even na 25%:
+
+Low automatycznie → 12% (50% × 25%) High automatycznie → 50% (200% × 25%) Nadal "Auto" badge
+
+Ręcznie zmieniasz Low na 8%:
+
+Badge zmienia się na "Własna" (pomarańczowy) Formuła pokazuje: "Wartość ręcznie dostosowana" Od tej pory Low NIE będzie się zmieniać gdy zmienisz Break-Even
+
+Jeśli wrócisz Low do 12% (wartość auto):
+
+System wykryje że to wartość zgodna z auto Badge wraca na "Auto" Znowu będzie się auto-update'ować
+
+3.3 📋 MENU - REORGANIZACJA ZADANIE: W 01-Main.js, funkcja onOpen(): javascriptfunction onOpen(e) { // Sprawdź wersję najpierw checkVersionMismatch();
+
+var ui = SpreadsheetApp.getUi();
+
+ui.createMenu('🎯 LUKO ANALYZER V6.1') // === SEKCJA 1: SETUP === .addItem('🔑 Ustaw klucz API', 'showApiKeyDialog') .addItem('✅ Sprawdź licencję', 'checkLicense') .addSeparator()
+
+// === SEKCJA 2: USTAWIENIA ===
+.addItem('⚙️ Ustawienia ACOS', 'showAcosSettings')  // ← PRZENIESIONE TUTAJ!
+.addSeparator()
+
+// === SEKCJA 3: ANALIZY ===
+.addItem('📊 Generate Textual Report', 'generateTextualReport')
+.addItem('📈 Full Analysis', 'runFullAnalysis')
+.addItem('📸 Snapshot', 'createSnapshot')
+.addSeparator()
+
+// === SEKCJA 4: BULK OPERATIONS ===
+.addSubMenu(ui.createMenu('🔧 BULK v2 Tools')
+  .addItem('📋 Utwórz kartę BULK', 'createBulkSheet')
+  .addItem('📊 Otwórz BULK_Source', 'openBulkSource')
+  .addItem('🔄 Inicjalizuj z nagłówkami SOURCE', 'initializeBulkWithSourceHeaders')
+  .addSeparator()
+  .addItem('🔍 Analiza → wypełnij BUILDER', 'analyzeFillBuilder')
+  .addSeparator()
+  .addItem('⏸️ Pauza targetów bez sprzedaży', 'pauseTargetsWithoutSales')
+  .addItem('💰 Zmień stawki', 'showBidChangeDialog')  // ← nowy dialog!
+  // .addItem('🚫 Dodaj negatywy', 'addNegativeKeywords')  // ZAKOMENTOWANE - nie gotowe
+  .addItem('➕ Przenieś do pozytywnych', 'moveToPositive')
+  .addItem('💸 Zmień budżety kampanii', 'showBudgetChangeDialog')
+  .addSeparator()
+  .addItem('✅ Waliduj przed eksportem', 'validateBeforeExport')
+  .addItem('📤 Eksportuj do Amazon', 'exportBulkToAmazon')
+  .addSeparator()
+  .addItem('🗑️ Wyczyść arkusze BULK', 'clearBulkSheets'))
+
+// === SEKCJA 5: NARZĘDZIA ===
+.addSeparator()
+.addItem('🐛 Debug Log', 'showDebugLog')
+.addItem('🗑️ Wyczyść dane', 'clearAllData')
+.addSeparator()
+
+// === SEKCJA 6: POMOC ===
+.addItem('📖 Instrukcja', 'showInstructions')
+.addItem('❓ Pomoc', 'showHelp')
+.addItem('ℹ️ O programie', 'showAbout')
+
+.addToUi();
+
+}
+
+📈 PRIORYTET 4: OPTYMALIZACJA WYDAJNOŚCI 4.1 💾 CACHE DLA ACOS SETTINGS Problem: getAcosSettings() wywoływane setki razy podczas mapowania → wolne ZADANIE: Dodaj na początku 01-Main.js: javascript// === CACHE GLOBALNY === var ACOS_SETTINGS_CACHE = null; var CACHE_TIMESTAMP = null; var CACHE_DURATION_MS = 30 * 1000; // 30 sekund
+
+function getAcosSettings() { var now = new Date().getTime();
+
+// Sprawdź cache if (ACOS_SETTINGS_CACHE && CACHE_TIMESTAMP && (now - CACHE_TIMESTAMP) < CACHE_DURATION_MS) { return ACOS_SETTINGS_CACHE; }
+
+// Pobierz z arkusza var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Settings'); if (!sheet) { // Wartości domyślne return { breakEven: 20, low: 10, high: 30 }; }
+
+var data = sheet.getRange('B1:B3').getValues(); var settings = { breakEven: universalParser.parseNumber(data[0][0]) || 20, low: universalParser.parseNumber(data[1][0]) || 10, high: universalParser.parseNumber(data[2][0]) || 30 };
+
+// Zapisz w cache ACOS_SETTINGS_CACHE = settings; CACHE_TIMESTAMP = now;
+
+Logger.log('✅ ACOS Settings loaded: ' + JSON.stringify(settings));
+
+return settings; }
+
+function clearAcosCache() { ACOS_SETTINGS_CACHE = null; CACHE_TIMESTAMP = null; } W 13-BulkMapper.js - pobierz RAZ na początku: javascriptfunction mapAndAnalyzeBulk() { // Pobierz ustawienia RAZ na początku var acosSettings = getAcosSettings();
+
+Logger.log('🎯 Starting BULK mapping with ACOS settings: ' + JSON.stringify(acosSettings));
+
+var data = getBulkData(); var results = [];
+
+for (var i = 0; i < data.length; i++) { var action = determineAction(data[i], acosSettings); // przekaż jako parametr results.push(action); }
+
+return results; }
+
+🔒 PRIORYTET 5: DODATKOWE FUNKCJE 5.1 📅 WYŚWIETLANIE DATY WYGAŚNIĘCIA LICENCJI ZADANIE: Zmodyfikuj checkLicense() w 01-Main.js: javascriptfunction checkLicense() { var apiKey = PropertiesService.getUserProperties().getProperty('LUKO_API_KEY');
+
+if (!apiKey) { SpreadsheetApp.getUi().alert( '❌ Brak klucza API', 'Najpierw ustaw klucz API w menu: 🔑 Ustaw klucz API', SpreadsheetApp.getUi().ButtonSet.OK ); return; }
+
+try { var response = UrlFetchApp.fetch('https://your-backend-api.com/verify', { method: 'POST', contentType: 'application/json', payload: JSON.stringify({ apiKey: apiKey }), muteHttpExceptions: true });
+
+var data = JSON.parse(response.getContentText());
+
+if (data.valid) {
+  var expiresAt = new Date(data.expiresAt);
+  var now = new Date();
+  var daysLeft = Math.floor((expiresAt - now) / (1000 * 60 * 60 * 24));
+  
+  var message = '✅ Licencja aktywna!\n\n';
+  message += '📅 Ważna do: ' + formatDate(expiresAt) + '\n';
+  message += '⏳ Pozostało dni: ' + daysLeft;
+  
+  if (daysLeft < 7) {
+    message += '\n\n⚠️ Licencja wkrótce wygaśnie! Skontaktuj się z LUKO w celu przedłużenia.';
+  }
+  
+  SpreadsheetApp.getUi().alert('Status Licencji', message, SpreadsheetApp.getUi().ButtonSet.OK);
+} else {
+  SpreadsheetApp.getUi().alert(
+    '❌ Licencja nieaktywna',
+    data.message || 'Sprawdź klucz API lub skontaktuj się z LUKO.',
+    SpreadsheetApp.getUi().ButtonSet.OK
+  );
+}
+
+} catch (e) { SpreadsheetApp.getUi().alert( '❌ Błąd połączenia', 'Nie można zweryfikować licencji: ' + e.message, SpreadsheetApp.getUi().ButtonSet.OK ); } }
+
+function formatDate(date) { var d = new Date(date); var day = ('0' + d.getDate()).slice(-2); var month = ('0' + (d.getMonth() + 1)).slice(-2); var year = d.getFullYear(); return day + '.' + month + '.' + year; }
+
+5.2 🔄 SYSTEM SPRAWDZANIA WERSJI ZADANIE: Dodaj na początku 01-Main.js: javascriptvar LIBRARY_VERSION = 6.1; // Zaktualizuj po zmianach
+
+function checkVersionMismatch() { try { var docProps = PropertiesService.getDocumentProperties(); var sheetVersion = docProps.getProperty('SHEET_VERSION');
+
+if (!sheetVersion) {
+  // Pierwsza inicjalizacja
+  docProps.setProperty('SHEET_VERSION', LIBRARY_VERSION.toString());
+  Logger.log('✅ Initialized sheet version: ' + LIBRARY_VERSION);
+  return;
+}
+
+var sheetVer = parseFloat(sheetVersion);
+
+if (sheetVer < LIBRARY_VERSION) {
+  var ui = SpreadsheetApp.getUi();
+  var response = ui.alert(
+    '🔄 Dostępna aktualizacja!',
+    'Wykryto nowszą wersję biblioteki LUKO Ads Optimizer:\n\n' +
+    '• Twój arkusz: V' + sheetVer + '\n' +
+    '• Aktualna wersja: V' + LIBRARY_VERSION + '\n\n' +
+    'Zalecamy skopiowanie nowego szablonu arkusza z najnowszymi funkcjami i poprawkami.\n\n' +
+    '💡 Kliknij OK aby otworzyć nowy szablon (twoje dane pozostaną w tym arkuszu).',
+    ui.ButtonSet.OK_CANCEL
+  );
+  
+  if (response === ui.Button.OK) {
+    var htmlOutput = HtmlService.createHtmlOutput(
+      '<script>' +
+      'window.open("https://docs.google.com/spreadsheets/d/1ayJQsMR9KGL78yccthrzmaxzN7QW5Bg66WlbTaTcHg4/copy", "_blank");' +
+      'setTimeout(function() { google.script.host.close(); }, 1000);' +
+      '</script>' +
+      '<div style="padding: 20px; text-align: center; font-family: Arial;">' +
+      '<p>Otwieranie nowego szablonu...</p>' +
+      '<p style="color: #666; font-size: 12px;">To okno zamknie się automatycznie</p>' +
+      '</div>'
+    ).setWidth(300).setHeight(150);
+    
+    ui.showModalDialog(htmlOutput, 'Otwieranie szablonu');
+  }
+}
+
+} catch (e) { Logger.log('⚠️ Version check failed: ' + e.message); // Ignoruj błędy sprawdzania wersji - nie przerywaj działania } }
+
+📝 METODOLOGIA PRACY KROK 1: POBIERZ OBA REPOZYTORIA bash# Clone nowej wersji git clone -b claude/fix-luko-ads-optimizer-01TTv3kUeeMLFF3GvM2QS3MA https://github.com/LUKOAI/LUKO_Ads_Optimizer.git new_version
+
+Clone starej wersji
+git clone -b COPY-OLD-LUKO_AMZ_ADS_OPTIMIZER https://github.com/LUKOAI/LUKO_Ads_Optimizer.git old_version KROK 2: PORÓWNAJ I ZIDENTYFIKUJ bash# Porównaj główne pliki diff -u old_version/gas/Code.gs new_version/google_apps_script/Library_V6/01-Main.js > diff_main.txt diff -u old_version/gas/BulkOperations.gs new_version/google_apps_script/Library_V6/15-BulkChangeManager.js > diff_bulk.txt KROK 3: NAPRAW PLIK PO PLIKU Dla każdego pliku:
+
+Otwórz nową wersję jako bazę Znajdź odpowiedniki w starej wersji Przywróć working code ze starej wersji Dodaj komentarze: // RESTORED FROM V0.60 - working implementation Test lokalnie jeśli możliwe
+
+KROK 4: PRIORYTETOWA KOLEJNOŚĆ NAPRAWY
+
+✅ universalParser - upewnij się że jest kompletny ✅ Zamień wszystkie parseFloat() → universalParser.parseNumber() ✅ 13-BulkMapper.js - przywróć zaznaczanie i kolorowanie ✅ Wszędzie zamień setValue() w pętli → setValues() batch ✅ 13-BulkMapper.js - popraw determineAction() logikę REVIEW ✅ 13-BulkMapper.js - dodaj system aliasów dla kolumn Amazon ✅ 14-BulkAnalyzer.js - dodaj fuzzy matching ✅ Stwórz BidChangeDialog.html ✅ Zmodyfikuj 10-AcosSettings.html ✅ Zaktualizuj 01-Main.js - menu, cache, wersja, licencja
+
+KROK 5: TESTUJ KAŻDĄ FUNKCJĘ Po każdej zmianie: bashclasp push --force Następnie w arkuszu testowym:
+
+Upload raport Amazon (oba formaty!) Test mapowania kolumn Test zaznaczania wierszy Test zmian stawek Test pauzowania Test Full Analysis
+
+KROK 6: COMMIT Z OPISEM bashgit add google_apps_script/Library_V6/ git commit -m "fix: restored batch processing and number parsing from V0.60
+
+Replaced all parseFloat() with universalParser.parseNumber()
+Restored working row selection logic from old version
+Fixed REVIEW assignment - now only for mixed signals
+Added Amazon report column aliases for both formats
+Improved performance with ACOS settings cache"
+git push
+
+✅ EXPECTED RESULTS Po zakończeniu naprawy, nowa wersja (Library_V6) powinna: DZIAŁAĆ PERFEKCYJNIE:
+
+✅ Zaznaczanie wierszy spełniających kryteria (checkboxy) ✅ Kolorowanie wierszy (zielony/żółty/czerwony) na podstawie ACOS ✅ Batch processing - szybkie operacje bez timeout'ów ✅ Rozpoznawanie WSZYSTKICH formatów liczb (5,5 / 5.5 / 1.234,56 / €5,50) ✅ Zmiany stawek działają poprawnie z europejskim formatem ✅ Pauzowanie targetów bez zawieszania ✅ Full Analysis → BULK_Builder matching z fuzzy search ✅ Mapowanie OBUFORMATÓW raportów Amazon
+
+LEPSZE UI:
+
+✅ Intuicyjny dialog zmian stawek (radio buttons + walidacja) ✅ Uproszczony dialog ACOS (1 pole + auto-obliczenia) ✅ Uporządkowane menu
+
+NOWE FUNKCJE:
+
+✅ Wyświetlanie daty wygaśnięcia licencji + pozostałych dni ✅ System sprawdzania wersji z alertem o aktualizacjach ✅ Cache dla ACOS settings (30s)
+
+🚨 KRYTYCZNE PRZYPOMNIENIA ‼️ NAJWAŻNIEJSZE:
+
+KAŻDE parseFloat() → universalParser.parseNumber() - to naprawi 90% problemów KAŻDE setValue() w pętli → setValues() batch - to naprawi timeouty Przywróć działającą logikę ze starej wersji - nie próbuj poprawiać, tylko skopiuj working code Testuj oba formaty raportów Amazon - SP Search Term Report I Sponsored_Products_Search_term_
+
+📋 PRZED KAŻDYM COMMIT:
+
+Czy wszystkie parseFloat() zostały zamienione? Czy batch processing jest wszędzie gdzie potrzebny? Czy mapowanie kolumn działa dla OBUFORMATÓW? Czy REVIEW jest przypisywany tylko w wyjątkowych przypadkach? Czy nowe dialogi działają poprawnie?
+
+📞 PYTAJ JEŚLI:
+
+Coś jest niejasne w którymkolwiek kroku Nie możesz znaleźć odpowiednika funkcji między starą a nową wersją Nie jesteś pewien czy coś przywrócić czy przepisać od nowa Potrzebujesz dodatkowych wyjaśnień logiki biznesowej
+
+KONIEC PROMPTA - GOTOWY DO UŻYCIA W CLAUDE CODE
